@@ -15,10 +15,7 @@ class DatasetConfig(TrackedConfigMixin):
     file_name: str = "cifar10"
     class_name: str = "Cifar10"
     root: str = "dataset"
-    image_height: int = 32
-    image_width: int = 32
-    num_classes: int = 10
-    augmentation_cfg: AugmentationConfig = field(default_factory=AugmentationConfig)
+    seq_len: int = 5
 
 
 @dataclass

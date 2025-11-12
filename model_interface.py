@@ -3,9 +3,7 @@ from dataclasses import asdict
 
 import torch
 import lightning.pytorch as pl
-
-from loss.loss_funcs import cross_entropy_loss
-from torchmetrics.functional.classification import multiclass_accuracy
+import torchvision
 from configs.sections import (
     ModelConfig,
     OptimizerConfig,
@@ -30,7 +28,6 @@ class ModelInterface(pl.LightningModule):
         self.scheduler_cfg = scheduler_cfg
         self.training_cfg = training_cfg
         self.data_cfg = data_cfg
-        self.num_classes = self.data_cfg.dataset.num_classes
 
         self.save_hyperparameters(
             {
@@ -52,7 +49,8 @@ class ModelInterface(pl.LightningModule):
     # check document: https://lightning.ai/docs/pytorch/LTS/common/lightning_module.html
     # Epoch level training logging
     def on_train_epoch_end(self):
-        pass
+        # Visualize some train_derained images at the end of each epoch
+        train_batch = next(iter(self.trainer.datamodule.train_dataloader()))
 
     # Caution: self.model.train() is invoked
     # For logging, check document: https://lightning.ai/docs/pytorch/stable/extensions/logging.html#automatic-logging
@@ -62,55 +60,56 @@ class ModelInterface(pl.LightningModule):
     # 3. If sync_dist=True, logger will average metrics across devices. This introduces additional communication overhead, and not suggested for large metric tensors.
     # We can also define customized metrics aggregator for incremental step-level aggregation(to be merged into epoch-level metrics).
     def training_step(self, batch, batch_idx):
-        train_input, train_labels = batch
-        train_out_logits = self(train_input)
-        train_loss = self.loss_function(train_out_logits, train_labels, 'train')
+        train_gt_fft, train_merge = batch['raw'], batch['merge']
+        train_derained = self(train_merge)
+        train_loss = self.loss_function(train_derained, train_gt_fft, 'train')
 
-        train_step_top1_acc = multiclass_accuracy(train_out_logits, train_labels, num_classes=self.num_classes, top_k=1)
-        train_step_top5_acc = multiclass_accuracy(train_out_logits, train_labels, num_classes=self.num_classes, top_k=5)
-        self.log('train_top1_acc', value=train_step_top1_acc, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=train_input.shape[0])
-        self.log('train_top5_acc', value=train_step_top5_acc, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=train_input.shape[0])
+        self.log('train_loss', train_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=train_merge.shape[0])
 
         train_step_output = {
             'loss': train_loss,
-            'pred': train_out_logits,
-            'ground_truth': train_labels
         }
 
         return train_step_output
 
     # Caution: self.model.eval() is invoked and this function executes within a <with torch.no_grad()> context
     def validation_step(self, batch, batch_idx):
-        val_input, val_labels = batch
-        val_out_logits = self(val_input)
-        val_loss = self.loss_function(val_out_logits, val_labels, 'val')
-        val_step_top1_acc = multiclass_accuracy(val_out_logits, val_labels, num_classes=self.num_classes, top_k=1)
-        val_step_top5_acc = multiclass_accuracy(val_out_logits, val_labels, num_classes=self.num_classes, top_k=5)
-        self.log('val_top1_acc', value=val_step_top1_acc, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=val_input.shape[0])
-        self.log('val_top5_acc', value=val_step_top5_acc, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=val_input.shape[0])
+        val_gt_fft, val_merge = batch['raw'], batch['merge']
+        val_derained = self(val_merge)
+        val_loss = self.loss_function(val_derained, val_gt_fft, 'val')
+
+        self.log('val_loss', val_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=val_merge.shape[0])
+
+        # Log val_derained images for visualization
+        if batch_idx == 0:
+            imgs = val_derained.detach().cpu()
+            imgs = imgs.squeeze(0).unsqueeze(1)  
+            grid = torchvision.utils.make_grid(imgs, nrow=5, normalize=True, scale_each=True)
+            self.logger.experiment.add_image('val_derained_images', grid, self.current_epoch)
+
+            # Log val_gt_fft images for visualization
+            gt_imgs = torch.fft.ifft2(val_gt_fft).real
+            gt_imgs = gt_imgs.detach().cpu()
+            gt_imgs = gt_imgs.squeeze(0).unsqueeze(1)  
+            gt_grid = torchvision.utils.make_grid(gt_imgs, nrow=5, normalize=True, scale_each=True)
+            self.logger.experiment.add_image('val_gt_images', gt_grid, self.current_epoch)
 
         val_step_output = {
             'loss': val_loss,
-            'pred': val_out_logits,
-            'ground_truth': val_labels
         }
 
         return val_step_output
 
     # Caution: self.model.eval() is invoked and this function executes within a <with torch.no_grad()> context
     def test_step(self, batch, batch_idx):
-        test_input, test_labels = batch
-        test_out_logits = self(test_input)
-        test_loss = self.loss_function(test_out_logits, test_labels, 'test')
-        test_step_top1_acc = multiclass_accuracy(test_out_logits, test_labels, num_classes=self.num_classes, top_k=1)
-        test_step_top5_acc = multiclass_accuracy(test_out_logits, test_labels, num_classes=self.num_classes, top_k=5)
-        self.log('test_top1_acc', value=test_step_top1_acc, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=test_input.shape[0])
-        self.log('test_top5_acc', value=test_step_top5_acc, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=test_input.shape[0])
+        test_gt_fft, test_merge = batch['raw'], batch['merge']
+        test_derained = self(test_merge)
+        test_loss = self.loss_function(test_derained, test_gt_fft, 'test')
+
+        self.log('test_loss', test_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=test_merge.shape[0])
 
         test_step_output = {
             'loss': test_loss,
-            'pred': test_out_logits,
-            'ground_truth': test_labels
         }
 
         return test_step_output
@@ -142,12 +141,26 @@ class ModelInterface(pl.LightningModule):
         return [optimizer_instance], [scheduler_instance]
 
     def __configure_loss(self):
-        def loss_func(preds, labels, stage):
-            CE_loss = 1.0 * cross_entropy_loss(pred=preds, gt=labels)
-            self.log(f'{stage}_CE_loss', CE_loss, on_step=True, on_epoch=True, prog_bar=True)
+        def loss_func(derained, gt_fft, stage: str):
+            # L1 loss between derained and gt
+            gt = torch.fft.ifft2(gt_fft).real
+            spatial_L1_loss = torch.nn.functional.l1_loss(derained, gt)
+            self.log(f'{stage}_spatial_L1_loss', spatial_L1_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
 
-            final_loss = CE_loss
-            self.log(f'{stage}_loss', final_loss, on_step=True, on_epoch=True, prog_bar=True)
+            # L1 loss between amplitude spectrum of derained and gt
+            derained_fft = torch.fft.fft2(derained)
+            derained_fft_amp = torch.abs(derained_fft)
+            gt_fft_amp = torch.abs(gt_fft)
+            FFT_amp_L1_loss = 0.01*torch.nn.functional.l1_loss(derained_fft_amp, gt_fft_amp)
+            self.log(f'{stage}_FFT_amp_L1_loss', FFT_amp_L1_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+
+            # L1 loss between phase spectrum of derained and gt
+            derained_fft_phase = torch.angle(derained_fft)
+            gt_fft_phase = torch.angle(gt_fft)
+            FFT_phase_L1_loss = 10*torch.nn.functional.l1_loss(derained_fft_phase, gt_fft_phase)
+            self.log(f'{stage}_FFT_phase_L1_loss', FFT_phase_L1_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+
+            final_loss = spatial_L1_loss + FFT_amp_L1_loss + FFT_phase_L1_loss
 
             return final_loss
 
@@ -171,5 +184,8 @@ class ModelInterface(pl.LightningModule):
 
         model = model_class(**model_init_kwargs)
         if self.training_cfg.use_compile:
-            model = torch.compile(model)
+            compile_fn = getattr(torch, "compile", None)
+            if compile_fn is None:
+                raise RuntimeError("torch.compile requested but not available in this torch build")
+            model = compile_fn(model)
         return model

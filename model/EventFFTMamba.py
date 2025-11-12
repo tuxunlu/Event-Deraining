@@ -4,29 +4,55 @@ import torch.fft
 import torch.nn.functional as F
 from mamba_ssm import Mamba
 
-def center_out_2d(H, W, device):
-    yy, xx = torch.meshgrid(
-        torch.arange(H, device=device),
-        torch.arange(W, device=device),
-        indexing="ij"
-    )
-    cy, cx = H // 2, W // 2
-    dist2 = (yy - cy)**2 + (xx - cx)**2
-    return torch.argsort(dist2.flatten())
+
+class ChannelLayerNorm2d(nn.Module):
+    def __init__(self, num_channels, eps=1e-6):
+        super().__init__()
+        self.ln = nn.LayerNorm(num_channels, eps=eps)
+
+    def forward(self, x):
+        # x: (B, C, H, W)
+        B, C, H, W = x.shape
+        x = x.permute(0, 2, 3, 1)          # (B, H, W, C)
+        x = self.ln(x)
+        x = x.permute(0, 3, 1, 2)          # back to (B, C, H, W)
+        return x
+
+
+def zigzag_2d(H, W, device):
+    order = []
+    for s in range(H + W - 1):
+        if s % 2 == 0:
+            i = min(s, H - 1)
+            j = s - i
+            while i >= 0 and j < W:
+                order.append(i * W + j)
+                i -= 1
+                j += 1
+        else:
+            j = min(s, W - 1)
+            i = s - j
+            while j >= 0 and i < H:
+                order.append(i * W + j)
+                i += 1
+                j -= 1
+    return torch.tensor(order, device=device)
+
 
 def build_3d_scans(N, H, W, device):
-    spatial_order = center_out_2d(H, W, device)
+    # same as before, just factored
+    spatial_order = zigzag_2d(H, W, device)
 
-    # Scan A: time-major, spatial center-out
-    scanA = torch.cat([t*(H*W) + spatial_order for t in range(N)], dim=0)
+    # time-major, spatial zigzag
+    scanA = torch.cat([t * (H * W) + spatial_order for t in range(N)], dim=0)
 
-    # Scan B: spatial-first, time zigzag
+    # spatial-first, time zigzag
     scanB = []
     fwd = torch.arange(N, device=device)
-    bwd = torch.arange(N-1, -1, -1, device=device)
+    bwd = torch.arange(N - 1, -1, -1, device=device)
     for i, sidx in enumerate(spatial_order):
         tids = fwd if i % 2 == 0 else bwd
-        scanB.append(tids * (H*W) + sidx)
+        scanB.append(tids * (H * W) + sidx)
     scanB = torch.cat(scanB, dim=0)
 
     scanA_rev = torch.flip(scanA, dims=[0])
@@ -43,130 +69,193 @@ def build_3d_scans(N, H, W, device):
 
 
 class FourScanBranch(nn.Module):
-    def __init__(self, N, H, W, kernel_size=3):
+    """
+    This now matches the FourierMamba-ish ordering:
+        (4 scans) → 1x1 in-proj → depthwise 1x1 → SiLU → Mamba(d_model) → LN(d_model) → 1x1 out-proj → unscan
+    and d_model is configurable per-instance.
+    """
+    def __init__(self, N, H, W, d_model: int):
         super().__init__()
         self.N, self.H, self.W = N, H, W
+        self.d_model = d_model
+        if d_model % 4 != 0:
+            raise ValueError(f"d_model ({d_model}) must be divisible by 4, but got {d_model}")
+        self.d_group = d_model // 4  # e.g., if d_model=16, d_group=4
         self.register_buffer("perms", None, persistent=False)
         self.register_buffer("inv_perms", None, persistent=False)
 
-        self.dwconv = nn.Conv1d(4, 4, kernel_size, padding=kernel_size//2, groups=4)
+        # 1. Input projection: (B, 4, L) -> (B, d_model, L)
+        #    This is 4 independent 1D convs: (in=1, out=d_group)
+        #    Scan 0 (ch 0) maps to channels 0..d_group-1
+        #    Scan 1 (ch 1) maps to channels d_group..2*d_group-1
+        #    ...etc.
+        self.in_dwconv = nn.Conv1d(4, d_model, kernel_size=1, stride=1, padding=0, groups=4)
+
         self.act = nn.SiLU()
-        self.mamba = Mamba(d_model=4)
-        self.norm = nn.LayerNorm(4)
+        # 2. Four independent Mamba blocks, one for each scan path
+        #    Each Mamba block processes d_group channels
+        self.mamba_blocks = nn.ModuleList([
+            Mamba(d_model=self.d_group) for _ in range(4)
+        ])
+        self.norm_blocks = nn.ModuleList([
+            nn.LayerNorm(self.d_group) for _ in range(4)
+        ])
+
+        self.out_dwconv = nn.Conv1d(d_model, 4, kernel_size=1, stride=1, padding=0, groups=4)
 
     def _init_scans(self, x):
         perms, invs = build_3d_scans(self.N, self.H, self.W, x.device)
-        self.perms = torch.stack(perms, dim=0)
-        self.inv_perms = torch.stack(invs, dim=0)
+        self.perms = torch.stack(perms, dim=0)       # (4, L)
+        self.inv_perms = torch.stack(invs, dim=0)    # (4, L)
 
     def forward(self, x):
-        # x: (B, N, H, W)
+        # x: (B, N, H, W), real
         B, N, H, W = x.shape
-        if self.perms is None:
+        if self.perms is None or self.perms.numel() == 0:
             self._init_scans(x)
 
         L = N * H * W
-        x_flat = x.view(B, L)
+        x_flat = x.view(B, L)  # (B, L)
 
-        # build 4 sequences
+        # 4 differently scanned sequences → stack as channels
         seqs = torch.stack([x_flat[:, self.perms[i]] for i in range(4)], dim=-1)  # (B, L, 4)
 
-        # DWConv→SiLU→Mamba→LN
-        seqs = seqs.transpose(1, 2)          # (B, 4, L)
-        seqs = self.dwconv(seqs)
-        seqs = seqs.transpose(1, 2)          # (B, L, 4)
-        seqs = self.act(seqs)
-        seqs = self.mamba(seqs)
-        seqs = self.norm(seqs)
+        # to conv format
+        seqs = seqs.transpose(1, 2)  # (B, 4, L)
 
-        # unscan each channel and fuse
+        # 1. Project each 1-channel scan to d_group channels
+        #    (B, 4, L) -> (B, d_model, L)
+        seqs = self.in_dwconv(seqs)
+        seqs = self.act(seqs)
+
+        # Mamba expects (B, L, C)
+        # (B, d_model, L) -> (B, L, d_model)
+        seqs = seqs.transpose(1, 2)
+        
+        # 2. Split into 4 groups for independent processing
+        #    This creates 4 tensors, each of shape (B, L, d_group)
+        seq_groups = torch.split(seqs, self.d_group, dim=-1)
+
+        # 3. Process each scan group with its own Mamba and Norm
+        processed_groups = []
+        for i in range(4):
+            g = seq_groups[i]               # (B, L, d_group)
+            g = self.mamba_blocks[i](g)     # (B, L, d_group)
+            g = self.norm_blocks[i](g)      # (B, L, d_group)
+            processed_groups.append(g)
+        
+        # 4. Concatenate back
+        #    (B, L, d_model)
+        seqs = torch.cat(processed_groups, dim=-1)
+
+        # 5. Project each d_group-channel path back to a single 1-channel path
+        #    Conv1d expects (B, C, L)
+        #    (B, L, d_model) -> (B, d_model, L)
+        seqs = seqs.transpose(1, 2)
+        #    (B, d_model, L) -> (B, 4, L)
+        seqs = self.out_dwconv(seqs)
+        
+        # --- End of Corrected General Fix ---
+
+        # unscan for each of the 4 paths
         recons = []
         for i in range(4):
-            invp = self.inv_perms[i]         # [L]
-            seq_i = seqs[:, :, i]            # (B, L)
-            rec = torch.empty_like(seq_i)
-            rec[:, invp] = seq_i
-            recons.append(rec)
+            # Now, seqs[:, i, :] is the (B, L) tensor for the i-th scan
+            path_seq = seqs[:, i, :]  # (B, L) 
+            recon = torch.empty_like(path_seq)
+            recon[:, self.inv_perms[i]] = path_seq
+            recons.append(recon)
 
         fused = torch.stack(recons, dim=0).mean(dim=0)  # (B, L)
         return fused.view(B, N, H, W)
 
 
 class FFTFourScanMambaBlock(nn.Module):
-    def __init__(self, N, H, W):
+    def __init__(self, N, H, W, d_model: int):
         super().__init__()
-        self.N, self.H, self.W = N, H, W
-        self.amp_branch = FourScanBranch(N, H, W)
-        self.phase_branch = FourScanBranch(N, H, W)
+        self.amp_branch = FourScanBranch(N, H, W, d_model=d_model)
+        self.phase_branch = FourScanBranch(N, H, W, d_model=d_model)
+        self.spa_ln = ChannelLayerNorm2d(N)
+        self.out_ln = ChannelLayerNorm2d(N)
 
     def forward(self, spatial_in: torch.Tensor, fft_in: torch.Tensor):
-        """
-        spatial_in: F_l, (B, N, H, W) real
-        fft_in:     (B, N, H, W) complex, FFT of F_l
-        returns: gated_spatial, new_fft
-        """
-        B, N, H, W = fft_in.shape
+        # spatial_in: (B, N, H, W), real
+        # fft_in:     (B, N, H, W), complex
+        spatial_in = self.spa_ln(spatial_in)
 
-        # decompose fft
-        amp   = torch.abs(fft_in)
+        amplitude = torch.abs(fft_in)
         phase = torch.angle(fft_in)
 
-        # process amplitude and phase via 4-scan mamba
-        amp_p   = self.amp_branch(amp)
-        phase_p = self.phase_branch(phase)
+        amplitude_rec = self.amp_branch(amplitude)
+        phase_rec = self.phase_branch(phase)
+        fft_rec = torch.polar(amplitude_rec, phase_rec)
 
-        # rebuild complex FFT
-        real = amp_p * torch.cos(phase_p)
-        imag = amp_p * torch.sin(phase_p)
-        fft_rec = torch.complex(real, imag)
+        spatial_rec = torch.fft.ifft2(fft_rec).real
 
-        # inverse fft to spatial
-        spatial_rec = torch.fft.ifft2(fft_rec).real   # (B, N, H, W)
-
-        # your gate: Ff = IFFT(...) ⊙ SiLU(Fl)
-        gate = F.silu(spatial_in)
-        spatial_out = spatial_rec * gate
-
-        return spatial_out, fft_rec
+        gated = F.silu(spatial_in) * spatial_rec
+        residual = self.out_ln(gated)
+        return residual, fft_rec
 
 
-class FFTFourScanMambaBackbone(nn.Module):
-    def __init__(self, N, H, W, depth=4):
+class EventFFTMamba(nn.Module):
+    """
+    Now takes a list of d_models, one per block, e.g. [16, 32, 32, 64]
+    to mimic the “progressive” channel growth that PRE-Mamba / vision SSM nets do.
+    """
+    def __init__(self, N, H, W, d_models):
         super().__init__()
+        self.in_ln = ChannelLayerNorm2d(N)
         self.blocks = nn.ModuleList(
-            [FFTFourScanMambaBlock(N, H, W) for _ in range(depth)]
+            [FFTFourScanMambaBlock(N, H, W, d_model=dm) for dm in d_models]
         )
 
     def forward(self, fft_init: torch.Tensor):
-        """
-        fft_init: (B, N, H, W) complex
-        """
-        # initial spatial feature F0
-        spatial = torch.fft.ifft2(fft_init).real
+        spatial0 = torch.fft.ifft2(fft_init).real          # (B, N, H, W)
+        x = self.in_ln(spatial0)
+
         fft_cur = fft_init
+        L = len(self.blocks)
+        mid = L // 2
+        skips = []
 
-        for blk in self.blocks:
-            # block returns gated update
-            spatial_update, fft_cur = blk(spatial, fft_cur)
-            # residual between blocks
-            spatial = spatial + spatial_update
-            # keep fft in sync for next block
-            fft_cur = torch.fft.fft2(spatial)
+        # encoder side
+        for i in range(mid):
+            dx, fft_cur = self.blocks[i](x, fft_cur)
+            x = x + dx
+            skips.append(x)
 
-        return spatial
+        # middle block if odd
+        if L % 2 == 1:
+            dx, fft_cur = self.blocks[mid](x, fft_cur)
+            x = x + dx
+            start_dec = mid + 1
+        else:
+            start_dec = mid
+
+        # decoder side
+        for i in range(start_dec, L):
+            dx, fft_cur = self.blocks[i](x, fft_cur)
+            pair = L - 1 - i
+            if 0 <= pair < len(skips):
+                x = x + dx + skips[pair]
+            else:
+                x = x + dx
+
+        # final skip to original spatial
+        # x = x + spatial0
+        return x
 
 
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     B, N, H, W = 1, 10, 128, 128
 
-    # pretend we already have N 2D FFTs:
-    # we can start from spatial and do fft2 to make a complex input
     spatial_input = torch.randn(B, N, H, W, device=device)
-    fft_input = torch.fft.fft2(spatial_input)  # (B, N, H, W), complex
+    fft_input = torch.fft.fft2(spatial_input)
 
-    model = FFTFourScanMambaBackbone(N, H, W, depth=4).to(device)
-    out_spatial = model(fft_input)
+    # pick per-block d_model like FourierMamba/PRE-Mamba stages
+    model = EventFFTMamba(N, H, W, d_models=[4, 4, 4, 4, 4, 4, 4, 4]).to(device)
+    out_spatial, out_fft = model(fft_input)
 
     print("input fft shape:", fft_input.shape, fft_input.dtype)
     print("output spatial shape:", out_spatial.shape, out_spatial.dtype)

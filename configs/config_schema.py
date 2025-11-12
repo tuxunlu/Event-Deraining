@@ -56,8 +56,6 @@ def validate_app_config(cfg: AppConfig):
         errors.append("DATA.dataset.file_name must be specified.")
     if not dataset.class_name:
         errors.append("DATA.dataset.class_name must be specified.")
-    if not _validate_positive(dataset.num_classes):
-        errors.append("DATA.dataset.num_classes must be a positive integer.")
 
     dataloader = cfg.DATA.dataloader
     if not _validate_positive(dataloader.batch_size):
