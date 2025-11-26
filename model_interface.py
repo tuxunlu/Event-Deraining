@@ -177,7 +177,7 @@ class ModelInterface(pl.LightningModule):
             derained_fft = torch.fft.fft2(derained)
             derained_fft_amp = torch.abs(derained_fft)
             gt_fft_amp = torch.abs(gt_fft)
-            FFT_amp_L1_loss = 0.01*torch.nn.functional.l1_loss(derained_fft_amp, gt_fft_amp)
+            FFT_amp_L1_loss = 0.1*torch.nn.functional.l1_loss(derained_fft_amp, gt_fft_amp)
             self.log(f'{stage}_FFT_amp_L1_loss', FFT_amp_L1_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
 
             # L1 loss between phase spectrum of derained and gt
@@ -187,7 +187,7 @@ class ModelInterface(pl.LightningModule):
             phase_loss = phase_loss_complex(derained_fft, gt_fft)
             self.log(f'{stage}_FFT_phase_loss', phase_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
 
-            final_loss = spatial_L1_loss + FFT_amp_L1_loss + phase_loss
+            final_loss = 10*spatial_L1_loss + FFT_amp_L1_loss + 10*phase_loss
 
             return final_loss
 
