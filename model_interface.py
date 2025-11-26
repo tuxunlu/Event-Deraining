@@ -12,6 +12,19 @@ from configs.sections import (
     DataConfig,
 )
 
+def phase_loss_complex(pred_fft: torch.Tensor,
+                       gt_fft: torch.Tensor,
+                       eps: float = 1e-8) -> torch.Tensor:
+    # Normalize to unit magnitude
+    pred_unit = pred_fft / (pred_fft.abs() + eps)
+    gt_unit   = gt_fft   / (gt_fft.abs() + eps)
+
+    # cos of phase difference: Re(pred * conj(gt))
+    cos_dphi = (pred_unit * gt_unit.conj()).real
+    cos_dphi = cos_dphi.clamp(-1.0, 1.0)  # safety
+
+    # 1 - cos(Δθ) ∈ [0,2]
+    return (1.0 - cos_dphi).mean()
 
 class ModelInterface(pl.LightningModule):
     def __init__(
@@ -51,6 +64,19 @@ class ModelInterface(pl.LightningModule):
     def on_train_epoch_end(self):
         # Visualize some train_derained images at the end of each epoch
         train_batch = next(iter(self.trainer.datamodule.train_dataloader()))
+        train_gt_fft, train_merge = train_batch['raw'], train_batch['merge']
+        train_derained = self(train_merge)
+        imgs = train_derained.detach().cpu()
+        imgs = imgs.squeeze(0).unsqueeze(1)
+        grid = torchvision.utils.make_grid(imgs, nrow=5, normalize=True, scale_each=True)
+        self.logger.experiment.add_image('train_derained_images', grid, self.current_epoch)
+
+        # Visualize some train_gt_fft images at the end of each epoch
+        gt_imgs = torch.fft.ifft2(train_gt_fft).real
+        gt_imgs = gt_imgs.detach().cpu()
+        gt_imgs = gt_imgs.squeeze(0).unsqueeze(1)
+        gt_grid = torchvision.utils.make_grid(gt_imgs, nrow=5, normalize=True, scale_each=True)
+        self.logger.experiment.add_image('train_gt_images', gt_grid, self.current_epoch)    
 
     # Caution: self.model.train() is invoked
     # For logging, check document: https://lightning.ai/docs/pytorch/stable/extensions/logging.html#automatic-logging
@@ -155,12 +181,13 @@ class ModelInterface(pl.LightningModule):
             self.log(f'{stage}_FFT_amp_L1_loss', FFT_amp_L1_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
 
             # L1 loss between phase spectrum of derained and gt
-            derained_fft_phase = torch.angle(derained_fft)
-            gt_fft_phase = torch.angle(gt_fft)
-            FFT_phase_L1_loss = 10*torch.nn.functional.l1_loss(derained_fft_phase, gt_fft_phase)
-            self.log(f'{stage}_FFT_phase_L1_loss', FFT_phase_L1_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            # derained_fft_phase = torch.angle(derained_fft)
+            # gt_fft_phase = torch.angle(gt_fft)
+            # FFT_phase_L1_loss = 10*torch.nn.functional.l1_loss(derained_fft_phase, gt_fft_phase)
+            phase_loss = phase_loss_complex(derained_fft, gt_fft)
+            self.log(f'{stage}_FFT_phase_loss', phase_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
 
-            final_loss = spatial_L1_loss + FFT_amp_L1_loss + FFT_phase_L1_loss
+            final_loss = spatial_L1_loss + FFT_amp_L1_loss + phase_loss
 
             return final_loss
 

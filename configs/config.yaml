@@ -7,7 +7,7 @@ TRAINING:
 
 DISTRIBUTED:
   accelerator: gpu
-  devices: 4
+  devices: 2
   num_nodes: 1
   strategy: auto
 
@@ -16,11 +16,11 @@ DATA:
     file_name: EventRainEFFT
     class_name: EventRainEFFT
     root: /fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/efft_results
-    seq_len: 5
+    seq_len: 3
   dataloader:
-    batch_size: 2
+    batch_size: 1
     test_batch_size: 1
-    num_workers: 8
+    num_workers: 2
     persistent_workers: True
     pin_memory: True
     multiprocessing_context: fork
@@ -34,8 +34,8 @@ MODEL:
   class_name: EventFFTMamba
   H: 256
   W: 256
-  N: 5
-  d_models: [32, 32, 32, 32, 32, 32, 32]
+  N: 3
+  d_models: [64, 128, 256, 512, 256, 128, 64]
 
 OPTIMIZER:
   name: Adam
@@ -53,11 +53,11 @@ SCHEDULER:
   
 LOGGER:
   log_dir_root: lightning_logs
-  experiment_name: EventFFTMamba_with_final_skip
+  experiment_name: EventFFTMamba
 
 CHECKPOINT:
   enabled: True
-  every_n_epochs: 1
+  every_n_epochs: 20
   monitor: val_loss_epoch
   mode: min
   filename: "best-{epoch:03d}-{val_loss_epoch:.5f}"
