@@ -126,7 +126,7 @@ class ModelInterface(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         train_gt, train_merge = batch['raw'], batch['merge']
         train_derained = self(train_merge)
-        train_loss = self.loss_function(train_derained, train_gt, 'train')
+        train_loss = self.loss_function(train_derained, train_gt, train_merge, 'train')
 
         self.log('train_loss', train_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=train_merge.shape[0])
 
@@ -138,7 +138,7 @@ class ModelInterface(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         val_gt, val_merge = batch['raw'], batch['merge']
         val_derained = self(val_merge)
-        val_loss = self.loss_function(val_derained, val_gt, 'val')
+        val_loss = self.loss_function(val_derained, val_gt, val_merge, 'val')
 
         self.log('val_loss', val_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=val_merge.shape[0])
 
@@ -160,7 +160,7 @@ class ModelInterface(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         test_gt, test_merge = batch['raw'], batch['merge']
         test_derained = self(test_merge)
-        test_loss = self.loss_function(test_derained, test_gt, 'test')
+        test_loss = self.loss_function(test_derained, test_gt, test_merge, 'test')
 
         self.log('test_loss', test_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=test_merge.shape[0])
 
@@ -197,31 +197,48 @@ class ModelInterface(pl.LightningModule):
     def __configure_loss(self):
         # Instantiate Losses as attributes of self so Lightning moves them to the correct device
         self.char_crit = CharbonnierLoss()
+
+        self.bg_alpha = 10.0
+        self.bg_lambda = 0.5
         
-        def loss_func(derained, gt, stage: str):
-            # 1. Spatial Loss: Charbonnier Loss
+        def loss_func(derained, gt, rainy, stage: str):
+                # 1. Spatial Loss
             spatial_loss = 10 * torch.nn.functional.l1_loss(derained, gt)
-            self.log(f'{stage}_spatial_loss', spatial_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            self.log(f'{stage}_spatial_loss', spatial_loss,
+                    on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
 
             # 2. Frequency Losses
             derained_fft = torch.fft.rfft2(derained, dim=(-2, -1))
             gt_fft = torch.fft.rfft2(gt, dim=(-2, -1))
-            
+
             # Log-Amplitude Loss
             amp_pred = torch.abs(derained_fft) + 1e-8
-            amp_gt = torch.abs(gt_fft) + 1e-8
+            amp_gt   = torch.abs(gt_fft) + 1e-8
             amp_loss = 5 * torch.nn.functional.l1_loss(torch.log(amp_pred), torch.log(amp_gt))
-            self.log(f'{stage}_fft_amp_loss', amp_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            self.log(f'{stage}_fft_amp_loss', amp_loss,
+                    on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
 
-            # L1 loss between phase spectrum of derained and gt
-            # derained_fft_phase = torch.angle(derained_fft)
-            # gt_fft_phase = torch.angle(gt_fft)
-            # FFT_phase_L1_loss = 10*torch.nn.functional.l1_loss(derained_fft_phase, gt_fft_phase)
-            phase_loss = 5 * phase_loss_complex(derained_fft, gt_fft)
-            self.log(f'{stage}_FFT_phase_loss', phase_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            # Phase Loss
+            phase_l = 5 * phase_loss_complex(derained_fft, gt_fft)
+            self.log(f'{stage}_FFT_phase_loss', phase_l,
+                    on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
 
-            final_loss = spatial_loss + amp_loss + phase_loss
+            # 3. Background Consistency Loss
+            # Compute where rainy input and GT already agree (likely background)
+            with torch.no_grad():
+                diff_inp_gt = (rainy - gt).abs()
+                # w ~ 1 where diff small, ~0 where diff large (rain / artifacts)
+                w = torch.exp(-self.bg_alpha * diff_inp_gt)
 
+            bg_loss_raw = (w * (derained - rainy).abs()).mean()
+            bg_loss = self.bg_lambda * bg_loss_raw
+
+            self.log(f'{stage}_bg_consistency_loss', bg_loss,
+                    on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+
+            # 4. Final loss
+            final_loss = spatial_loss + amp_loss + phase_l + bg_loss
+            # final_loss = spatial_loss + amp_loss + phase_l
             return final_loss
 
         return loss_func

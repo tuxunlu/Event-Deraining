@@ -124,7 +124,8 @@ class VSSBlock(nn.Module):
         filtered_mag = mag_xf * mag_mask
 
         # Phase: keep original phase, add small bounded residual
-        pha_res = torch.tanh(self.freq_ssm_pha(self.ln_pha(pha_xf)))
+        # pha_res = torch.tanh(self.freq_ssm_pha(self.ln_pha(pha_xf)))
+        pha_res = 0.1 + 0.9 * torch.tanh(self.freq_ssm_pha(self.ln_pha(pha_xf)))
         filtered_pha = pha_xf + pha_res
 
         # Reconstruct spectrum with filtered magnitude and near-original phase
@@ -169,8 +170,6 @@ class FourierMamba2D(nn.Module):
         super().__init__()
         
         self.patch_embed = nn.Conv2d(in_chans, dim, kernel_size=3, stride=1, padding=1)
-        # Learnable residual scale, squashed to [0, 0.5] at runtime to keep outputs near input brightness
-        self.res_scale_param = nn.Parameter(torch.tensor(0.0))
         
         # --- Multi-Scale Input Mappers (SS2D_map logic) ---
         # The repo uses Mamba blocks to process the resized inputs
@@ -215,6 +214,17 @@ class FourierMamba2D(nn.Module):
         self.refinement = nn.ModuleList([VSSBlock(dim*2) for _ in range(2)]) # Usually 4 blocks
         
         self.output = nn.Conv2d(dim*2, out_chans, kernel_size=3, padding=1)
+
+        # # Rain mask head, predicts per-pixel "how much to change"
+        # self.rain_mask_head = nn.Sequential(
+        #     nn.Conv2d(dim*2, dim, kernel_size=3, padding=1),
+        #     nn.GELU(),
+        #     nn.Conv2d(dim, out_chans, kernel_size=3, padding=1),
+        #     nn.Sigmoid(),  # mask ∈ [0,1]
+        # )
+
+        # # Learnable global residual scale (keep this small)
+        # self.res_scale_param = nn.Parameter(torch.tensor(0.0))
 
     def forward(self, inp_img):
         # inp_img: [B, 1, H, W]
@@ -297,8 +307,7 @@ class FourierMamba2D(nn.Module):
             out = layer(out)
             
         # 10. Output
-        res_scale = 0.5 * torch.sigmoid(self.res_scale_param)
-        out = torch.clamp(inp_img + res_scale * self.output(out), 0.0, 1.0)
+        out = self.output(out) + inp_img 
         
         return out
 
