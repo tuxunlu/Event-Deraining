@@ -50,6 +50,14 @@ def validate_app_config(cfg: AppConfig):
         errors.append("MODEL.file_name must be specified.")
     if not cfg.MODEL.class_name:
         errors.append("MODEL.class_name must be specified.")
+    if not cfg.MODEL.in_chans:
+        errors.append("MODEL.in_chans must be specified.")
+    if not cfg.MODEL.out_chans:
+        errors.append("MODEL.out_chans must be specified.")
+    if not cfg.MODEL.dim:
+        errors.append("MODEL.dim must be specified.")
+    if not cfg.MODEL.num_blocks:
+        errors.append("MODEL.num_blocks must be specified.")
 
     dataset = cfg.DATA.dataset
     if not dataset.file_name:

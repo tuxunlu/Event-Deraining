@@ -7,7 +7,7 @@ from configs.config_tracker import TrackedConfigMixin
 class ModelConfig(TrackedConfigMixin):
     file_name: str = "simple_net"
     class_name: str = "SimpleNet"
-    H: int = field(default=32, metadata={"help": "Input height."})
-    W: int = field(default=32, metadata={"help": "Input width."})
-    N: int = field(default=5, metadata={"help": "Sequence length."})
-    d_models: list = field(default_factory=lambda: [16, 32, 32, 64], metadata={"help": "Model depths."})
+    in_chans: int = field(default=1, metadata={"help": "Number of input channels."})
+    out_chans: int = field(default=1, metadata={"help": "Number of output channels."})
+    dim: int = field(default=48, metadata={"help": "Base dimension of the model."})
+    num_blocks: list = field(default_factory=lambda: [2, 2, 2, 2], metadata={"help": "Number of blocks at each stage."})

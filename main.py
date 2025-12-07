@@ -131,6 +131,8 @@ def _build_trainer_kwargs(cfg: AppConfig, logger: TensorBoardLogger, callbacks: 
         "devices": distributed_cfg.devices,
         "num_nodes": distributed_cfg.num_nodes,
         "strategy": distributed_cfg.strategy,
+        "gradient_clip_val": distributed_cfg.gradient_clip_val,
+        "detect_anomaly": distributed_cfg.detect_anomaly,
     }
 
     gradient_clip_cfg = optimizer_cfg.gradient_clip

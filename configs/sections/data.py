@@ -15,7 +15,6 @@ class DatasetConfig(TrackedConfigMixin):
     file_name: str = "cifar10"
     class_name: str = "Cifar10"
     root: str = "dataset"
-    seq_len: int = 5
 
 
 @dataclass

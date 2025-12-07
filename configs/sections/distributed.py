@@ -10,3 +10,5 @@ class DistributedConfig(TrackedConfigMixin):
     devices: Any = 1
     num_nodes: int = 1
     strategy: Optional[str] = None
+    gradient_clip_val: Optional[float] = None
+    detect_anomaly: bool = False
