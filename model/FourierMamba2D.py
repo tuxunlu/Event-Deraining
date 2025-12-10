@@ -120,13 +120,21 @@ class VSSBlock(nn.Module):
         
         # Magnitude mask: sigmoid to ensure [0,1], keep a floor to avoid full drop
         h_mag = self.freq_ssm_mag(self.ln_mag(mag_xf))
+
         mag_mask = torch.sigmoid(h_mag)
+
+        # prob_mag = torch.sigmoid(h_mag)  
+        # # Hard 0/1 mask for forward
+        # mag_mask_hard = (prob_mag >= 0.5).float()
+        # # Straight-through: forward uses hard mask, backward uses soft prob
+        # mag_mask = prob_mag + (mag_mask_hard - prob_mag).detach()
+
         filtered_mag = mag_xf * mag_mask
 
         # Phase: keep original phase, add small bounded residual
-        # pha_res = torch.tanh(self.freq_ssm_pha(self.ln_pha(pha_xf)))
-        pha_res = 0.1 + 0.9 * torch.tanh(self.freq_ssm_pha(self.ln_pha(pha_xf)))
+        pha_res = torch.tanh(self.freq_ssm_pha(self.ln_pha(pha_xf)))
         filtered_pha = pha_xf + pha_res
+        # filtered_pha = pha_xf
 
         # Reconstruct spectrum with filtered magnitude and near-original phase
         real_h = filtered_mag * torch.cos(filtered_pha)
@@ -215,17 +223,6 @@ class FourierMamba2D(nn.Module):
         
         self.output = nn.Conv2d(dim*2, out_chans, kernel_size=3, padding=1)
 
-        # # Rain mask head, predicts per-pixel "how much to change"
-        # self.rain_mask_head = nn.Sequential(
-        #     nn.Conv2d(dim*2, dim, kernel_size=3, padding=1),
-        #     nn.GELU(),
-        #     nn.Conv2d(dim, out_chans, kernel_size=3, padding=1),
-        #     nn.Sigmoid(),  # mask ∈ [0,1]
-        # )
-
-        # # Learnable global residual scale (keep this small)
-        # self.res_scale_param = nn.Parameter(torch.tensor(0.0))
-
     def forward(self, inp_img):
         # inp_img: [B, 1, H, W]
         B, C, H, W = inp_img.shape
@@ -308,7 +305,7 @@ class FourierMamba2D(nn.Module):
             
         # 10. Output
         out = self.output(out) + inp_img 
-        
+
         return out
 
 

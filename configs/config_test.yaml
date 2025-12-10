@@ -31,8 +31,8 @@ DATA:
     shuffle_test: False
 
 MODEL:
-  file_name: FourierMamba2D   # Updated to match the script name from your error log
-  class_name: FourierMamba2D    # Updated to match the class name we implemented
+  file_name: FourierMamba2DTest   # Updated to match the script name from your error log
+  class_name: FourierMamba2DTest    # Updated to match the class name we implemented
   in_chans: 1              # Matches dataset seq_len or merged channels
   out_chans: 1
   dim: 32                 # Base dimension (verified in script)
@@ -54,7 +54,7 @@ SCHEDULER:
   
 LOGGER:
   log_dir_root: lightning_logs
-  experiment_name: FourierMamba2D_bg_identity_rain_loss_binary_mag
+  experiment_name: FourierMamba2DTest
 
 CHECKPOINT:
   enabled: True
