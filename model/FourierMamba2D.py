@@ -120,12 +120,21 @@ class VSSBlock(nn.Module):
         
         # Magnitude mask: sigmoid to ensure [0,1], keep a floor to avoid full drop
         h_mag = self.freq_ssm_mag(self.ln_mag(mag_xf))
+
         mag_mask = torch.sigmoid(h_mag)
+
+        # prob_mag = torch.sigmoid(h_mag)  
+        # # Hard 0/1 mask for forward
+        # mag_mask_hard = (prob_mag >= 0.5).float()
+        # # Straight-through: forward uses hard mask, backward uses soft prob
+        # mag_mask = prob_mag + (mag_mask_hard - prob_mag).detach()
+
         filtered_mag = mag_xf * mag_mask
 
         # Phase: keep original phase, add small bounded residual
         pha_res = torch.tanh(self.freq_ssm_pha(self.ln_pha(pha_xf)))
         filtered_pha = pha_xf + pha_res
+        # filtered_pha = pha_xf
 
         # Reconstruct spectrum with filtered magnitude and near-original phase
         real_h = filtered_mag * torch.cos(filtered_pha)
@@ -169,8 +178,6 @@ class FourierMamba2D(nn.Module):
         super().__init__()
         
         self.patch_embed = nn.Conv2d(in_chans, dim, kernel_size=3, stride=1, padding=1)
-        # Learnable residual scale, squashed to [0, 0.5] at runtime to keep outputs near input brightness
-        self.res_scale_param = nn.Parameter(torch.tensor(0.0))
         
         # --- Multi-Scale Input Mappers (SS2D_map logic) ---
         # The repo uses Mamba blocks to process the resized inputs
@@ -297,9 +304,8 @@ class FourierMamba2D(nn.Module):
             out = layer(out)
             
         # 10. Output
-        res_scale = 0.5 * torch.sigmoid(self.res_scale_param)
-        out = torch.clamp(inp_img + res_scale * self.output(out), 0.0, 1.0)
-        
+        out = self.output(out) + inp_img 
+
         return out
 
 

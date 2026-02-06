@@ -30,6 +30,9 @@ from lightning.pytorch.callbacks.progress.rich_progress import RichProgressBarTh
 from rich.table import Table
 
 from model_interface import ModelInterface
+from model_interface_progressive import ModelInterfaceProgressive
+from model_interface_test import ModelInterfaceTest
+from model_interface_dual import ModelInterfaceDual
 from data_interface import DataInterface
 from utils.logging import get_resume_info
 from configs.config_schema import load_config_with_schema, AppConfig
@@ -170,7 +173,7 @@ def main(cfg: AppConfig, tracker: ConfigUsageTracker, runtime: Dict[str, Any]):
     }
 
     if mode == 'warmstart' and ckpt_path:
-        model_module = ModelInterface.load_from_checkpoint(
+        model_module = ModelInterfaceDual.load_from_checkpoint(
             ckpt_path,
             strict=bool(runtime.get('strict_state_dict', True)),
             map_location=runtime.get('map_location', None),
@@ -178,7 +181,7 @@ def main(cfg: AppConfig, tracker: ConfigUsageTracker, runtime: Dict[str, Any]):
         )
         ckpt_for_trainer_fit = None
     else:
-        model_module = ModelInterface(**model_interface_kwargs)
+        model_module = ModelInterfaceDual(**model_interface_kwargs)
         ckpt_for_trainer_fit = ckpt_path if mode == 'resume' else None
 
     data_module = DataInterface(**data_interface_kwargs)

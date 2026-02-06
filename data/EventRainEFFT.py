@@ -119,6 +119,7 @@ class EventRainEFFT(Dataset):
 
         # load raw frames (use same indices)
         raw_seq = torch.stack([self._load_npz(p) for p in self.raw_files[start:end]])
+        raw_seq = torch.fft.ifft2(raw_seq).real
 
         # load rainy frames from this particular intensity
         merge_seq = torch.stack([self._load_npz(p) for p in self.merge_files_per_intensity[mm][start:end]])

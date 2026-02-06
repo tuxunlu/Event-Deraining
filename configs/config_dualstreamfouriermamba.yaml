@@ -7,9 +7,9 @@ TRAINING:
   
 DISTRIBUTED:
   accelerator: gpu
-  devices: 4
+  devices: 2
   num_nodes: 1
-  strategy: auto
+  strategy: ddp_find_unused_parameters_true
   gradient_clip_val: 0
   detect_anomaly: False
   
@@ -19,7 +19,7 @@ DATA:
     class_name: EventRainEFFT2D
     root: /fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/efft_results
   dataloader:
-    batch_size: 4
+    batch_size: 5
     test_batch_size: 4
     num_workers: 2
     persistent_workers: True
@@ -31,18 +31,18 @@ DATA:
     shuffle_test: False
 
 MODEL:
-  file_name: FourierMamba2D   # Updated to match the script name from your error log
-  class_name: FourierMamba2D    # Updated to match the class name we implemented
+  file_name: DualStreamFourierMamba   # Updated to match the script name from your error log
+  class_name: DualStreamFourierMamba    # Updated to match the class name we implemented
   in_chans: 1              # Matches dataset seq_len or merged channels
   out_chans: 1
-  dim: 32                 # Base dimension (verified in script)
-  num_blocks: [2, 2, 2, 2]    # Encoder/Decoder depths
+  dim: 24                 # Base dimension (verified in script)
+  num_blocks: [3, 3, 3, 3]    # Encoder/Decoder depths
 
 OPTIMIZER:
   name: Adam
   arguments:
-    lr: 5e-4
-    weight_decay: 1e-5  # Default L2 Regularization
+    lr: 1e-3
+    weight_decay: 1e-4  # Default L2 Regularization
 
 SCHEDULER:
   learning_rate:      # For learning rate scheduler, check document: https://docs.pytorch.org/docs/2.8/optim.html#how-to-adjust-learning-rate
@@ -54,7 +54,7 @@ SCHEDULER:
   
 LOGGER:
   log_dir_root: lightning_logs
-  experiment_name: FourierMamba2D_bg_identity_rain_loss_binary_mag
+  experiment_name: DualStreamFourierMamba_bg+rain_losses
 
 CHECKPOINT:
   enabled: True

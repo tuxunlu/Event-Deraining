@@ -91,7 +91,7 @@ class CharbonnierLoss(nn.Module):
 
 # --- Main Interface ---
 
-class ModelInterface(pl.LightningModule):
+class ModelInterfaceProgressive(pl.LightningModule):
     def __init__(
         self,
         model_cfg: ModelConfig,
@@ -125,8 +125,38 @@ class ModelInterface(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         train_gt, train_merge = batch['raw'], batch['merge']
-        train_derained = self(train_merge)
-        train_loss = self.loss_function(train_derained, train_gt, train_merge, 'train')
+        
+        # 1. Get Model Output
+        train_output = self(train_merge)
+
+        # 2. Check for Multi-Stage Output (Tuple)
+        if isinstance(train_output, (tuple, list)):
+            # Unpack: Final Image, Coarse Stage 1 Image, SAM Aux Image
+            train_derained, train_coarse, train_aux = train_output
+            
+            # --- Loss Calculation ---
+            
+            # A. Main Loss (Stage 2 Output)
+            # We use the full complex loss function defined in __configure_loss
+            loss_main = self.loss_function(train_derained, train_gt, train_merge, 'train')
+            
+            # B. Coarse Loss (Stage 1 Output)
+            # Supervision for the first stage to ensure it learns structure
+            loss_coarse = self.loss_function(train_coarse, train_gt, train_merge, 'train_coarse')
+            
+            # C. Aux Loss (SAM Output)
+            # Simple pixel-wise supervision for the attention module's auxiliary output
+            loss_aux = self.char_crit(train_aux, train_gt)
+            self.log('train_aux_loss', loss_aux, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+            
+            # Total Loss: Sum of all stages
+            # You can tune weights, e.g., 1.0, 1.0, 0.1
+            train_loss = loss_main + loss_coarse + 0.1 * loss_aux
+            
+        else:
+            # Fallback for single-stage models or validation mode
+            train_derained = train_output
+            train_loss = self.loss_function(train_derained, train_gt, train_merge, 'train')
 
         self.log('train_loss', train_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=train_merge.shape[0])
 
