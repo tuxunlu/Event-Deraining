@@ -1,0 +1,66 @@
+TRAINING:
+  deterministic: False
+  use_compile: False
+  inference_mode: False
+  seed: 42
+  max_epochs: 50
+
+DISTRIBUTED:
+  accelerator: gpu
+  devices: 2
+  num_nodes: 1
+  strategy: auto
+  gradient_clip_val: 0
+  detect_anomaly: False
+
+DATA:
+  dataset:
+    file_name: EventRainEFFT2D
+    class_name: EventRainEFFT2D
+    root: /fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/efft_results
+  dataloader:
+    batch_size: 4
+    test_batch_size: 4
+    num_workers: 2
+    persistent_workers: True
+    pin_memory: True
+    multiprocessing_context: fork
+    drop_last: False
+    shuffle_train: True
+    shuffle_val: False
+    shuffle_test: False
+
+MODEL:
+  file_name: DynamicFourierFilterNet
+  class_name: DynamicFourierFilterNet
+  in_chans: 1
+  out_chans: 1
+  dim: 32
+  num_blocks: [4]
+
+OPTIMIZER:
+  name: AdamW
+  arguments:
+    lr: 5e-4
+    weight_decay: 1e-5
+
+SCHEDULER:
+  learning_rate:
+    enabled: True
+    name: CosineAnnealingLR
+    arguments:
+      T_max: 50
+      eta_min: 1e-6
+
+LOGGER:
+  log_dir_root: lightning_logs
+  experiment_name: DynamicFourierFilterNet_2D
+
+CHECKPOINT:
+  enabled: True
+  every_n_epochs: 5
+  monitor: val_loss_epoch
+  mode: min
+  filename: "best-{epoch:03d}-{val_loss_epoch:.5f}"
+  save_top_k: 1
+  save_last: True
