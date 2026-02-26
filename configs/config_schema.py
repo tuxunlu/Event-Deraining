@@ -23,6 +23,17 @@ from configs.sections import (
 if not OmegaConf.has_resolver("mul"):
     OmegaConf.register_new_resolver("mul", lambda x, y: x * y)
 
+_SECTION_KEY_ALIASES = {
+    "training": "TRAINING",
+    "distributed": "DISTRIBUTED",
+    "data": "DATA",
+    "model": "MODEL",
+    "optimizer": "OPTIMIZER",
+    "scheduler": "SCHEDULER",
+    "logger": "LOGGER",
+    "checkpoint": "CHECKPOINT",
+}
+
 
 @dataclass
 class AppConfig(TrackedConfigMixin):
@@ -93,6 +104,12 @@ def validate_app_config(cfg: AppConfig):
 
 def load_config_with_schema(path: str) -> Tuple[AppConfig, Dict[str, Any], ConfigUsageTracker]:
     user_cfg = OmegaConf.load(path)
+    # Support both historical lowercase section keys and current uppercase schema keys.
+    for src_key, dst_key in _SECTION_KEY_ALIASES.items():
+        if src_key in user_cfg and dst_key not in user_cfg:
+            user_cfg[dst_key] = user_cfg[src_key]
+        if src_key in user_cfg:
+            del user_cfg[src_key]
     structured_default = OmegaConf.structured(AppConfig)
     merged_cfg = OmegaConf.merge(structured_default, user_cfg)
     cfg_obj: AppConfig = OmegaConf.to_object(merged_cfg)

@@ -7,7 +7,7 @@ TRAINING:
 
 DISTRIBUTED:
   accelerator: gpu
-  devices: 2
+  devices: 1
   num_nodes: 1
   strategy: auto
   gradient_clip_val: 0
@@ -31,8 +31,8 @@ DATA:
     shuffle_test: False
 
 MODEL:
-  file_name: DynamicFourierFilterNet
-  class_name: DynamicFourierFilterNet
+  file_name: DynamicFourierFilterNetFDConv
+  class_name: DynamicFourierFilterNetFDConv
   in_chans: 1
   out_chans: 1
   dim: 32
@@ -54,7 +54,7 @@ SCHEDULER:
 
 LOGGER:
   log_dir_root: lightning_logs
-  experiment_name: DynamicFourierFilterNet_2D
+  experiment_name: DynamicFourierFilterNetFDConv_2D
 
 CHECKPOINT:
   enabled: True

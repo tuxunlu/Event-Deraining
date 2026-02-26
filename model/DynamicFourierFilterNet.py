@@ -6,6 +6,32 @@ import torch.nn.functional as F
 # Core Dynamic Filter Components
 # =========================================================================
 
+def make_divisible(v, divisor=8, min_value=None):
+    if min_value is None:
+        min_value = divisor
+    new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
+    if new_v < 0.9 * v:
+        new_v += divisor
+    return new_v
+
+
+class SqueezeExcite(nn.Module):
+    def __init__(self, in_chans, se_ratio=0.25):
+        super().__init__()
+        reduced = max(8, int(in_chans * se_ratio))
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.fc1 = nn.Conv2d(in_chans, reduced, kernel_size=1)
+        self.act = nn.ReLU(inplace=True)
+        self.fc2 = nn.Conv2d(reduced, in_chans, kernel_size=1)
+
+    def forward(self, x):
+        scale = self.pool(x)
+        scale = self.fc1(scale)
+        scale = self.act(scale)
+        scale = self.fc2(scale)
+        scale = F.hardsigmoid(scale)
+        return x * scale
+
 class DynamicFilterLayer2D(nn.Module):
     """
     Applies a pixel-wise (or frequency-bin-wise) dynamic local filter.
@@ -44,29 +70,35 @@ class DynamicFourierBlock(nn.Module):
     Core block that processes spatial features, jumps to Fourier Domain,
     generates and applies dynamic filters to Phase and Magnitude, and jumps back.
     """
-    def __init__(self, dim, kernel_size=3):
+    def __init__(self, dim, kernel_size=3, fgn_bottleneck_ratio=0.5, ffn_expand_ratio=2.0, se_ratio=0.25):
         super().__init__()
         self.dim = dim
         self.k2 = kernel_size**2
+        fgn_hidden = max(8, int(dim * fgn_bottleneck_ratio))
+        ffn_hidden = make_divisible(dim * ffn_expand_ratio, 8)
         
         self.norm1 = nn.LayerNorm(dim)
         
-        # Filter Generating Network (FGN) - Extremely lightweight using Grouped Convs
+        # MobileNet-style: bottleneck + depthwise + pointwise head.
+        # This cuts the expensive filter-head FLOPs while preserving dynamic behavior.
         self.fgn = nn.Sequential(
-            nn.Conv2d(dim * 2, dim, kernel_size=3, padding=1, groups=dim),
-            nn.GELU(),
+            nn.Conv2d(dim * 2, fgn_hidden, kernel_size=1, bias=False),
+            nn.Conv2d(fgn_hidden, fgn_hidden, kernel_size=3, padding=1, groups=fgn_hidden, bias=False),
+            nn.Hardswish(),
             # Outputs filters for both Magnitude and Phase (hence * 2)
-            nn.Conv2d(dim, dim * self.k2 * 2, kernel_size=1) 
+            nn.Conv2d(fgn_hidden, dim * self.k2 * 2, kernel_size=1)
         )
         
         self.dynamic_filter = DynamicFilterLayer2D(kernel_size=kernel_size)
         
-        # Spatial Feed-Forward Network (FFN) for spatial refinement
+        # MobileNetV3-style inverted bottleneck FFN with depthwise mixing + SE.
         self.norm2 = nn.LayerNorm(dim)
         self.ffn = nn.Sequential(
-            nn.Conv2d(dim, dim * 2, kernel_size=1),
-            nn.GELU(),
-            nn.Conv2d(dim * 2, dim, kernel_size=1)
+            nn.Conv2d(dim, ffn_hidden, kernel_size=1, bias=False),
+            nn.Conv2d(ffn_hidden, ffn_hidden, kernel_size=3, padding=1, groups=ffn_hidden, bias=False),
+            nn.Hardswish(),
+            SqueezeExcite(ffn_hidden, se_ratio=se_ratio),
+            nn.Conv2d(ffn_hidden, dim, kernel_size=1, bias=True),
         )
 
     def forward(self, x):
@@ -121,7 +153,17 @@ class DynamicFourierFilterNet(nn.Module):
     """
     Lightweight Event-Based Deraining Model using Dynamic Fourier Filters.
     """
-    def __init__(self, in_chans=1, out_chans=1, dim=32, num_blocks=4):
+    def __init__(
+        self,
+        in_chans=1,
+        out_chans=1,
+        dim=32,
+        num_blocks=4,
+        width_mult=1.0,
+        fgn_bottleneck_ratio=0.5,
+        ffn_expand_ratio=2.0,
+        se_ratio=0.25,
+    ):
         super().__init__()
         if isinstance(num_blocks, (list, tuple)):
             if len(num_blocks) == 0:
@@ -129,17 +171,32 @@ class DynamicFourierFilterNet(nn.Module):
             num_blocks = int(sum(num_blocks))
         else:
             num_blocks = int(num_blocks)
+        dim = make_divisible(dim * width_mult, 8)
         
-        # Initial Feature Projection
-        self.in_proj = nn.Conv2d(in_chans, dim, kernel_size=3, padding=1)
+        # MobileNet-style depthwise-separable stem.
+        self.in_proj = nn.Sequential(
+            nn.Conv2d(in_chans, in_chans, kernel_size=3, padding=1, groups=in_chans, bias=False),
+            nn.Conv2d(in_chans, dim, kernel_size=1, bias=True),
+            nn.Hardswish(),
+        )
         
         # Stack of Dynamic Fourier Blocks
         self.blocks = nn.ModuleList([
-            DynamicFourierBlock(dim=dim, kernel_size=3) for _ in range(num_blocks)
+            DynamicFourierBlock(
+                dim=dim,
+                kernel_size=3,
+                fgn_bottleneck_ratio=fgn_bottleneck_ratio,
+                ffn_expand_ratio=ffn_expand_ratio,
+                se_ratio=se_ratio,
+            )
+            for _ in range(num_blocks)
         ])
         
-        # Output Projection
-        self.out_proj = nn.Conv2d(dim, out_chans, kernel_size=3, padding=1)
+        # MobileNet-style depthwise-separable head.
+        self.out_proj = nn.Sequential(
+            nn.Conv2d(dim, dim, kernel_size=3, padding=1, groups=dim, bias=False),
+            nn.Conv2d(dim, out_chans, kernel_size=1, bias=True),
+        )
 
     def forward(self, x):
         # x expected shape: [B, 1, H, W] (real spatial image from dataset)
