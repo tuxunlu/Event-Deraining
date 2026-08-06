@@ -5,6 +5,6 @@
 source /fs/nexus-scratch/tuxunlu/miniconda3/bin/activate pointcept
 
 # Set environment variables
-export PYTHONPATH="/fs/nexus-scratch/tuxunlu/git/event-based-deraining:$PYTHONPATH"
+export PYTHONPATH="/fs/nexus-scratch/tuxunlu/git/Event-Deraining:$PYTHONPATH"
 module load gcc/14.2.0
 module load cuda/12.1.1

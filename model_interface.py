@@ -201,7 +201,7 @@ class ModelInterface(pl.LightningModule):
         self.bg_alpha = 10.0
         self.bg_lambda = 0.5
         
-        def loss_func(derained, gt, rainy, stage: str):
+        def loss_func_1(derained, gt, rainy, stage: str):
                 # 1. Spatial Loss
             spatial_loss = 10 * torch.nn.functional.l1_loss(derained, gt)
             self.log(f'{stage}_spatial_loss', spatial_loss,
@@ -256,7 +256,45 @@ class ModelInterface(pl.LightningModule):
             # final_loss = spatial_loss + amp_loss + phase_l
             return final_loss
 
-        return loss_func
+
+        def loss_func_2(derained, gt, rainy, stage: str):
+            # Joint objective:
+            #   L = Lce + lambda * Lfft
+            # where Lfft is computed on 1D FFT over flattened event-label sequences.
+            eps = 1e-8
+            eps_prime = 1e-6
+            fft_lambda = 0.1
+
+            gt = gt.float()
+
+            # If model output is logits (outside [0,1]), use BCEWithLogits.
+            # Otherwise treat it as probabilities and use BCE directly.
+            der_min = float(derained.detach().amin().item())
+            der_max = float(derained.detach().amax().item())
+            if der_min < 0.0 or der_max > 1.0:
+                ce_loss = torch.nn.functional.binary_cross_entropy_with_logits(derained, gt)
+                pred_prob = torch.sigmoid(derained)
+            else:
+                pred_prob = derained.clamp(0.0, 1.0)
+                ce_loss = torch.nn.functional.binary_cross_entropy(pred_prob, gt)
+
+            # 1D sequence view for event labels/predictions.
+            # Shape: [B, L], where L aggregates channel/spatial dimensions.
+            pred_seq = pred_prob.reshape(pred_prob.shape[0], -1)
+            gt_seq = gt.reshape(gt.shape[0], -1)
+
+            pred_fft = torch.fft.fft(pred_seq, dim=-1)
+            gt_fft = torch.fft.fft(gt_seq, dim=-1)
+
+            # Main frequency consistency term from the paper-style formula:
+            # ((|F(P)-F(Y)| / (max(|F(P)-F(Y)|, eps) + eps'))^2).mean()
+            fft_diff_mag = torch.abs(pred_fft - gt_fft)
+            fft_norm = fft_diff_mag / (fft_diff_mag.clamp_min(eps) + eps_prime)
+            fft_main = torch.mean(fft_norm.pow(2))
+
+            return fft_main
+        
+        return loss_func_2
 
     def __load_model(self):
         file_name = self.model_cfg.file_name
