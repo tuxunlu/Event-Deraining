@@ -13,9 +13,14 @@ the config batch reachable without gradient accumulation).
 Evaluation runs on rank 0 only, on the full loader — no sharding, so the metric
 is identical to the single-GPU runs and directly comparable.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import json, os, sys, time
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 
 import numpy as np
 import torch
@@ -26,7 +31,7 @@ from torch.utils.data.distributed import DistributedSampler
 
 import train_compare as TC
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+TMP = f"{C.CKPT}"
 EPOCHS = int(os.environ.get("EPOCHS", 50))
 
 

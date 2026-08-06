@@ -5,9 +5,14 @@ seed is applied inside build() -- that re-seeds both the weight init and the
 global RNG the shuffling DataLoader draws from, giving init AND data-order
 variation, which is what a seed sweep is supposed to measure.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import argparse, json, os, sys
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 
 import numpy as np
 import torch
@@ -41,7 +46,7 @@ def build():
 
 
 r = TC.run(f"ORSPNet seed{args.seed}", build, tr, va, args.epochs)
-out = f"/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp/orsp_seed{args.seed}.json"
+out = f"{C.CKPT}/orsp_seed{args.seed}.json"
 json.dump(r, open(out, "w"), indent=2)
 print(f"\nSEEDRESULT seed={args.seed} params={r['params']} "
       f"best={r['best_meanDA']:.4f} final={r['final_meanDA']:.4f}", flush=True)

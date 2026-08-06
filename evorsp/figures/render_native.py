@@ -14,6 +14,13 @@ Chapters: four real-world recordings spanning light -> storm.
 Columns: Input | 2D control | EvORSP-3T (self-prior thresholds).
 Canvas: 3 x 1280 native panels -> 3936x862 video.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -22,12 +29,11 @@ import cv2
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-OUT = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/figs"
-S5 = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_realworld/scene5/merge_data"
+TMP = f"{C.CKPT}"
+OUT = f"{C.FIGS}"
+S5 = f"{C.REAL_WILD_SRC}/scene5/merge_data"
 DEV = "cuda"
 T16, RW, RH = 16, 448, 256
 NW, NH = 1280, 720

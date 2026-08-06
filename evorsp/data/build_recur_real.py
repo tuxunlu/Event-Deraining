@@ -9,14 +9,20 @@ Separability on the failing population (persistent rain vs scene):
 The fine/coarse persistence RATIO I expected to carry it measured 0.539 and is
 retained only because it is free once the scales are computed.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob, os, sys
 import numpy as np
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from recur_feats import Recur, NCOL
 
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
-CACHE = "/fs/nexus-scratch/tuxunlu/real_headv2"
-OUT = "/fs/nexus-scratch/tuxunlu/real_recur"
+S = f"{C.REAL_SRC}"
+CACHE = f"{C.REAL_HEAD}"
+OUT = f"{C.REAL_RECUR}"
 
 seqs = sorted({(f.split("/")[-3], f.split("/")[-2])
                for f in glob.glob(f"{CACHE}/*/*/*.npz")})

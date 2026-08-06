@@ -23,16 +23,23 @@ on/off; gt_maj must be recomputed per T from counts, so counts are kept too
 Background/rain is decided per merge event by exact (x, y, t) membership in the
 clean raw_data stream -- the same rule the event-level evaluator uses.
 
-Output: /fs/nexus-scratch/tuxunlu/kitti_t16e/{split}/{mm}/NNNN.npz
+Output: $EVORSP_WORK/kitti_t16e/{split}/{mm}/NNNN.npz
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 from multiprocessing import Pool
 
 import numpy as np
 
-S = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/synthetic_KITTI/synthetic"
-OUT = "/fs/nexus-scratch/tuxunlu/kitti_t16e"
+S = f"{C.KITTI_SRC}"
+OUT = f"{C.KITTI_PACK}"
 T, R = 16, 256
 SRC_W, SRC_H = 460, 352
 VAL = {"20mm", "80mm"}

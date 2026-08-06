@@ -12,6 +12,13 @@ Models:
                    input representation on real data exactly as it did on
                    KITTI and SPAC.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import argparse
 import glob
 import json
@@ -23,11 +30,10 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
 import sys
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 
-ROOT = "/fs/nexus-scratch/tuxunlu/real_t16"
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+ROOT = f"{C.WORK / 'real_t16'}"
+TMP = f"{C.CKPT}"
 DEV = "cuda"
 T_BUILD, R = 16, 256
 TAUS = np.linspace(0.05, 0.95, 19)

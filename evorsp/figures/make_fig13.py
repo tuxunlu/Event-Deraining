@@ -5,12 +5,19 @@ ceilings) with our old and new trained models placed against them. The old
 model sits ON its target's ceiling -- it was saturated, not weak.
 Right: cost. Same accuracy, 9.4x fewer params, ~55-100x faster.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-FIG = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/figs"
+FIG = f"{C.FIGS}"
 BLUE, MAUVE, GREY = "#3b6fb6", "#9b6b9e", "#b9b9b9"
 
 fig, (ax, ax2) = plt.subplots(1, 2, figsize=(13.2, 5.4),

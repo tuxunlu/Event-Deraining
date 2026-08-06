@@ -17,17 +17,23 @@ three thresholding rules on the already-trained checkpoint, no retraining:
     (b) per-frame unweighted self-prior  (the campaign's existing rule)
     (c) per-frame COUNT-weighted self-prior             (RANK 2)
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import sys
 
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 
-ROOT = "/fs/nexus-scratch/tuxunlu/kitti_t16e"
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+ROOT = f"{C.KITTI_PACK}"
+TMP = f"{C.CKPT}"
 DEV = "cuda"
 T_BUILD, R, T_OUT = 16, 256, 16
 

@@ -24,6 +24,13 @@ mixed cells carry only 4.4% of the objective. Two fixes, both in this file:
 Val is evaluated on the same weighted sample (unbiased); the final test number
 recomputes structure-tensor columns on the fly for EVERY event, so it is exact.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import argparse
 import glob
 import json
@@ -37,15 +44,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 from run_kitti_perevent import sample_at
 from fast_tensor import tensor_cols_fast
 
-PACK = "/fs/nexus-scratch/tuxunlu/kitti_t16e"
-CACHE = "/fs/nexus-scratch/tuxunlu/kitti_headv2"
-SRC = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/synthetic_KITTI/synthetic"
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+PACK = f"{C.KITTI_PACK}"
+CACHE = f"{C.KITTI_HEAD}"
+SRC = f"{C.KITTI_SRC}"
+TMP = f"{C.CKPT}"
 DEV = "cuda"
 T_BUILD, R, NW, NH = 16, 256, 460, 352
 DILS = (1, 3, 9)   # L3a: 3x3 at these dilations -> 27x27 native view

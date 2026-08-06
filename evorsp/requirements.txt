@@ -1,0 +1,11 @@
+# Core -- everything derain.py and the trainers need.
+numpy>=1.21
+torch>=1.12          # CUDA build strongly preferred; CPU works but is ~50x slower
+
+# Figures and diagnostics only. Skip these if you just want to run the model.
+matplotlib>=3.5
+opencv-python>=4.5   # imported as cv2, used by the video renderers
+scikit-learn>=1.0    # AUC in the feature-probe scripts
+
+# NOT installable from here, and only needed to reproduce the PRE-Mamba
+# baseline: `pointcept`, from https://github.com/Yuanhaoo/PRE-Mamba

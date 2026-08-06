@@ -15,6 +15,13 @@ cache building, not for inference.
                 fully parallel. Truncation error is bounded by d^K and verified
                 against the CPU version in __main__.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -118,7 +125,6 @@ def tensor_gpu(x, y, t, tau, scales, nw, nh, slice_len, ktaps=None, dev="cuda"):
 if __name__ == "__main__":
     import sys
     import time
-    sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
     from run_kitti_headv3 import multiscale_patch
     from fast_tensor import tensor_cols_fast
 

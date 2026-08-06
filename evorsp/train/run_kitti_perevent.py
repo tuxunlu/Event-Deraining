@@ -25,6 +25,13 @@ metric (identity verified to 1.1e-16 in verify_lossmath.py).
 Trained jointly: the bolt-on version (frozen trunk) is the configuration the
 refinement literature reports as regressing below baseline.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import argparse
 import glob
 import json
@@ -38,12 +45,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 
-PACK = "/fs/nexus-scratch/tuxunlu/kitti_t16e"
-SRC = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/synthetic_KITTI/synthetic"
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+PACK = f"{C.KITTI_PACK}"
+SRC = f"{C.KITTI_SRC}"
+TMP = f"{C.CKPT}"
 DEV = "cuda"
 T_BUILD, R = 16, 256
 NW, NH = 460, 352

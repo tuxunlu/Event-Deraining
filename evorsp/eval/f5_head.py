@@ -16,6 +16,13 @@ Also reports: stratified gains (trunk-correct vs trunk-wrong cells), and the
 ambiguity-gate ablation (head applied only near tau) -- expected to LOSE given
 the gain lives in trunk-wrong cells; measured, not assumed.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import argparse
 import glob
 import os
@@ -25,15 +32,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 
 DEV = "cuda"
 T16, RW, RH = 16, 448, 256
 NW, NH = 1280, 720
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
-CACHE = "/fs/nexus-scratch/tuxunlu/evhead_cache"
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+S = f"{C.REAL_SRC}"
+CACHE = f"{C.WORK / 'evhead_cache'}"
+TMP = f"{C.CKPT}"
 PER_FRAME = 12000
 
 

@@ -18,8 +18,15 @@ Two things the plain head lacks, both aimed at the occlusion failure:
   the whole-frame balanced-accuracy objective despite the biased sample.
 
 tensor_cols is a causal 1 ms time-sliced loop (slow), hence the cache.
-Output: /fs/nexus-scratch/tuxunlu/kitti_headv2/{split}/{mm}/NNNN.npz
+Output: $EVORSP_WORK/kitti_headv2/{split}/{mm}/NNNN.npz
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -27,14 +34,13 @@ from multiprocessing import Pool
 
 import numpy as np
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from fast_tensor import tensor_cols_fast
 
-SP = "/fs/nexus-scratch/tuxunlu/git/Event-Deraining/dataset/synthetic/synthetic_SPAC"
+SP = f"{C.SPAC_SRC}"
 MERGE = f"{SP}/SPAC-dataset-merge/events"
 GT = f"{SP}/SPAC-dataset-event/gt"
-PACK = "/fs/nexus-scratch/tuxunlu/spac_t16e"
-OUT = "/fs/nexus-scratch/tuxunlu/spac_headv2"
+PACK = f"{C.SPAC_PACK}"
+OUT = f"{C.SPAC_HEAD}"
 NW, NH, R, T16 = 640, 480, 256, 16   # SPAC native; stamps are NANOseconds
 N_SAMP = 24000
 # KITTI timestamps are NANOseconds (span ~1.04e8 ns = 104 ms), unlike the

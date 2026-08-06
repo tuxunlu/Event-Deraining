@@ -17,13 +17,18 @@ routes, both preserving each architecture's actual computation:
     runs unmodified at in_chans = out_chans = 10 (its own residual intact) and
     a 1x1 conv maps 10 -> T_out afterwards.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import sys
 
 import torch
 import torch.nn as nn
 
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import TemporalFrontend
 
 

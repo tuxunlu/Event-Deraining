@@ -7,6 +7,13 @@ its own protocol threshold. 10 fps -> ~39 s.
 
 Written with cv2 (mp4v), then remuxed to H.264 with ffmpeg for compatibility.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -15,8 +22,6 @@ import cv2
 import numpy as np
 import torch
 
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 import train_compare as TC
 
 
@@ -51,9 +56,9 @@ MODELS = [
     ("evorsp",    "k3d_T4b3off",         "evorsp3t",  "EvORSP-3T (temporal+OFF)", None, ""),
 ]
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-OUT = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/figs"
-T16 = "/fs/nexus-scratch/tuxunlu/kitti_t16"
+TMP = f"{C.CKPT}"
+OUT = f"{C.FIGS}"
+T16 = f"{C.WORK / 'kitti_t16'}"
 DEV = "cuda"
 RATES = ["50mm", "150mm"]
 FPS = 10

@@ -5,14 +5,20 @@ rebuilt. Keyed by the SAME `sel` indices, so the two load side by side.
 Measured separability of persistent rain vs scene: AUC 0.864 (burstiness,
 16 px tiles) -- the model currently has no access to this.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob, os, sys
 import numpy as np, torch
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from iti_feats import iti_gpu
 
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
-CACHE = "/fs/nexus-scratch/tuxunlu/real_headv2"
-OUT = "/fs/nexus-scratch/tuxunlu/real_iti"
+S = f"{C.REAL_SRC}"
+CACHE = f"{C.REAL_HEAD}"
+OUT = f"{C.REAL_ITI}"
 NW, NH = 1280, 720
 
 files = sorted(glob.glob(f"{CACHE}/*/*/*.npz"))

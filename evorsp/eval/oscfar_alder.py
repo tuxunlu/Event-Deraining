@@ -18,6 +18,13 @@ ALDER step 1 -- logistic head refit WITHOUT trunk-derived dims (col 0 logit +
          head fitted unhashed, evaluated hashed -- approximation, stated)
   PRE-REGISTERED KILL: quantized+hashed scene-disjoint event-BA < 0.820.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import sys
 
@@ -25,15 +32,14 @@ import numpy as np
 import torch
 from sklearn.linear_model import LogisticRegression
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 
 DEV = "cuda"
 T16, RW, RH = 16, 448, 256
 NW, NH = 1280, 720
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
-CACHE = "/fs/nexus-scratch/tuxunlu/evhead_cache"
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+S = f"{C.REAL_SRC}"
+CACHE = f"{C.WORK / 'evhead_cache'}"
+TMP = f"{C.CKPT}"
 HASH_BITS = 20                       # 1M buckets
 
 # ---------------- heads from the cache (CPU) ------------------------------

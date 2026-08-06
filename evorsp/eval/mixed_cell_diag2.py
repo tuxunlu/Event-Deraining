@@ -8,6 +8,13 @@ so the numbers extend that table directly:
 
 Usage: python mixed_cell_diag2.py [head_checkpoint_tag]
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -15,17 +22,16 @@ import sys
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 from run_kitti_perevent import Head, sample_at
 from run_kitti_headv2 import HeadV2, multiscale_patch
 import run_kitti_headv3 as HV3
 from fast_tensor import tensor_cols_fast
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-SRC = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/synthetic_KITTI/synthetic"
-PACK = "/fs/nexus-scratch/tuxunlu/kitti_t16e/test"
-PM = "/fs/nexus-scratch/tuxunlu/git/PRE-Mamba/exp/event_rain/SYTHETIC/result"
+TMP = f"{C.CKPT}"
+SRC = f"{C.KITTI_SRC}"
+PACK = f"{C.KITTI_PACK}/test"
+PM = f"{C.PM_SYNTH}"
 DEV = "cuda"
 NW, NH, R, T16 = 460, 352, 256, 16
 HEAD_TAG = sys.argv[1] if len(sys.argv) > 1 else "peh_c2f4"

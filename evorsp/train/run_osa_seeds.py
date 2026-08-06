@@ -4,9 +4,14 @@ and that was ASSUMED to be single-seed noise. Measure it instead.
 Runs the two extremes of the OSA-Net front-end ablation at seeds 1 and 2;
 combined with the seed-0 runs in run_osa.py this gives 3 seeds of each.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import sys, os, json
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 import numpy as np, torch
 from torch.utils.data import DataLoader
 import train_compare as TC
@@ -35,7 +40,7 @@ for s in (1, 2):
     res.append(TC.run(f"H3. OSA no-FFT     seed{s}",
                       lambda: OSANet(dim=32, num_blocks=4, use_bank=False,
                                      use_rate=False), tr, va, 10))
-    json.dump(res, open("/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp/osa_seeds.json", "w"),
+    json.dump(res, open(f"{C.CKPT}/osa_seeds.json", "w"),
               indent=2)
 
 print("\n======== SEED SUMMARY ========")

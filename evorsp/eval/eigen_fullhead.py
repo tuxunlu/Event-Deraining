@@ -3,6 +3,13 @@ Full 110-dim head features + 19 structure-tensor columns (tau=5ms),
 logreg, scenes 1-3 -> scene 4. If no gain: the trunk already encodes the
 oriented statistic (expected -- it has a log-Gabor bank); the columns' value
 is async-only. If gain: the flagship improves too."""
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob, sys
 import numpy as np, torch
 sys.path.insert(0, ".")
@@ -11,7 +18,7 @@ from sklearn.linear_model import LogisticRegression
 from eigenpyramid import tensor_cols, count_cols   # reuse
 
 DEV = "cuda"; T16, RW, RH = 16, 448, 256; NW, NH = 1280, 720
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
+S = f"{C.REAL_SRC}"
 TAU_US = 5000
 rng = np.random.default_rng(0)
 

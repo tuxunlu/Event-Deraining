@@ -7,19 +7,25 @@ Inputs: real test frames built by their own test pipeline (GridSample voxelize
 Reports ms/frame and ms per million current-scan events (their paper metric
 is 0.4 s/M events).
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import statistics
 import sys
 import time
 
 import torch
 
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/PRE-Mamba")
 from pointcept.engines.defaults import default_config_parser
 from pointcept.datasets import build_dataset, collate_fn
 from pointcept.models import build_model
 
-CFG = "/fs/nexus-scratch/tuxunlu/git/PRE-Mamba/configs/event_rain/PRE_Mamba.py"
-CKPT = ("/fs/nexus-scratch/tuxunlu/git/PRE-Mamba/exp/event_rain/SYTHETIC/"
+CFG = f"{C.PREMAMBA}/configs/event_rain/PRE_Mamba.py"
+CKPT = (f"{C.PREMAMBA}/exp/event_rain/SYTHETIC/"
         "model/model_best.pth")
 DEV = "cuda"
 

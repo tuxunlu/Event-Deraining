@@ -23,18 +23,25 @@ on/off; gt_maj must be recomputed per T from counts, so counts are kept too
 Background/rain is decided per merge event by exact (x, y, t) membership in the
 clean raw_data stream -- the same rule the event-level evaluator uses.
 
-Output: /fs/nexus-scratch/tuxunlu/kitti_t16e/{split}/{mm}/NNNN.npz
+Output: $EVORSP_WORK/kitti_t16e/{split}/{mm}/NNNN.npz
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 from multiprocessing import Pool
 
 import numpy as np
 
-S = "/fs/nexus-scratch/tuxunlu/git/Event-Deraining/dataset/synthetic/synthetic_SPAC"
+S = f"{C.SPAC_SRC}"
 MERGE = f"{S}/SPAC-dataset-merge/events"
 GT = f"{S}/SPAC-dataset-event/gt"
-OUT = "/fs/nexus-scratch/tuxunlu/spac_t16e"
+OUT = f"{C.SPAC_PACK}"
 T, R = 16, 256
 SRC_W, SRC_H = 640, 480        # SPAC native
 # scene-disjoint split, as fixed in the original spac_build.py

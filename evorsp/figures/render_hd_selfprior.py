@@ -17,6 +17,13 @@ Video B  real_world_allmodels.mp4 : Input + the six KITTI-trained models
                                     domain gap visible) + the two real-trained
                                     models. 2 recordings, 1x display.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -25,12 +32,10 @@ import cv2
 import numpy as np
 import torch
 
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-OUT = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/figs"
-S5 = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_realworld/scene5/merge_data"
+TMP = f"{C.CKPT}"
+OUT = f"{C.FIGS}"
+S5 = f"{C.REAL_WILD_SRC}/scene5/merge_data"
 DEV = "cuda"
 T16, RW, RH = 16, 448, 256
 FPS = 10

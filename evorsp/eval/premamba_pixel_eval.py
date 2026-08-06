@@ -10,14 +10,21 @@ Reverse bridge of kitti_event_eval.py, completing the 2x2 matrix:
     per-intensity mean over frames, then mean of the two intensities.
 No threshold to select: argmax is their protocol's own decision rule.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 
 import numpy as np
 
-S = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/synthetic_KITTI/synthetic"
-PACK = "/fs/nexus-scratch/tuxunlu/kitti_t16/test"
-RES = "/fs/nexus-scratch/tuxunlu/git/PRE-Mamba/exp/event_rain/SYTHETIC/result"
+S = f"{C.KITTI_SRC}"
+PACK = f"{C.WORK / 'kitti_t16'}/test"
+RES = f"{C.PM_SYNTH}"
 T_BUILD, R = 16, 256
 SRC_W, SRC_H = 460, 352
 

@@ -8,6 +8,13 @@ Layout per chapter: Input | 2D control | EvORSP-3T, one row, 448x256 grid
 (aspect-correct) displayed 2x. Polarity colours (ON red / OFF blue / both
 purple). Trained models at the per-frame SELF-PRIOR threshold.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import re
@@ -17,12 +24,11 @@ import cv2
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-OUT = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/figs"
-REAL = "/fs/nexus-projects/DVS_Actions/dataset/real"
+TMP = f"{C.CKPT}"
+OUT = f"{C.FIGS}"
+REAL = f"{C.DATA / 'real'}"
 DEV = "cuda"
 T16, RW, RH = 16, 448, 256
 FPS, NPER = 10, 80

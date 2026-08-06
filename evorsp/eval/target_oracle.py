@@ -20,12 +20,19 @@ same frames -- each is the ceiling of a model trained to predict that target:
 The spread between A and D says how much of the 0.24 shortfall is the target
 definition rather than model capacity or granularity.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 
 import numpy as np
 
-S = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/synthetic_KITTI/synthetic"
+S = f"{C.KITTI_SRC}"
 SRC_W, SRC_H = 460, 352
 R = 256
 MAX_FRAMES = 80

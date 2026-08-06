@@ -23,6 +23,13 @@ Models compared:
              If the diagnosis is right, this arm should already do better here.
     premamba its saved per-event predictions (native pixel x 20 time bins)
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -30,13 +37,12 @@ import sys
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-SRC = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/synthetic_KITTI/synthetic"
-PACK = "/fs/nexus-scratch/tuxunlu/kitti_t16e/test"
-PM = "/fs/nexus-scratch/tuxunlu/git/PRE-Mamba/exp/event_rain/SYTHETIC/result"
+TMP = f"{C.CKPT}"
+SRC = f"{C.KITTI_SRC}"
+PACK = f"{C.KITTI_PACK}/test"
+PM = f"{C.PM_SYNTH}"
 DEV = "cuda"
 NW, NH, R, T16 = 460, 352, 256, 16
 BANDS = [(1, 2), (2, 5), (5, 20), (20, 10 ** 9)]      # rain:scene ratio bands

@@ -13,6 +13,13 @@ ON planes (+ OFF planes) instead of the collapsed 1-bit frame. The T=1 ON-only
 case reproduces the 2D input exactly (OR-union), so the leaderboard is the
 honest control.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import argparse
 import glob
 import json
@@ -25,11 +32,10 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
 import sys
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D, DFFN3T
 
-ROOT = "/fs/nexus-scratch/tuxunlu/kitti_t16"
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+ROOT = f"{C.WORK / 'kitti_t16'}"
+TMP = f"{C.CKPT}"
 DEV = "cuda"
 T_BUILD, R = 16, 256
 TAUS = np.linspace(0.05, 0.95, 19)

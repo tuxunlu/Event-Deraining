@@ -10,6 +10,13 @@ in this project. Real rain here is a hard domain shift: EVK4 sensor (not
 simulation), 1280x720 optics, and full-height vertical streaks unlike the
 short synthetic streaks either training set contains.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -17,11 +24,9 @@ import sys
 import numpy as np
 import torch
 
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-ROOT = "/fs/nexus-scratch/tuxunlu/real_t16"
+TMP = f"{C.CKPT}"
+ROOT = f"{C.WORK / 'real_t16'}"
 DEV = "cuda"
 T, R = 16, 256
 TAUS = np.linspace(0.05, 0.95, 19)

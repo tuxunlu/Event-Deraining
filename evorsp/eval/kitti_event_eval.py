@@ -9,6 +9,13 @@ Protocol bridge for the head-to-head:
     assigned to every event in that pixel (subset rule).
 Neither model saw 50/150mm in training.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -16,13 +23,12 @@ import sys
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 
 DEV = "cuda"
-S = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/synthetic_KITTI/synthetic"
-PACK = "/fs/nexus-scratch/tuxunlu/kitti_t16/test"
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+S = f"{C.KITTI_SRC}"
+PACK = f"{C.WORK / 'kitti_t16'}/test"
+TMP = f"{C.CKPT}"
 T_BUILD, T, R = 16, 4, 256
 SRC_W, SRC_H = 460, 352
 TAUS = np.linspace(0.05, 0.95, 19)

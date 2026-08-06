@@ -14,6 +14,13 @@ mean p over lit cells), which measured +0.006 over a single global tau and needs
 no labels. PRE-Mamba uses its own argmax, as published -- that asymmetry favours
 us and is stated in the caption rather than hidden.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -22,19 +29,17 @@ import cv2
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
 from rsp_3d import ORSPNet3D
 from bodies_e import FrontendBody
 from run_kitti_perevent import sample_at
 from run_kitti_headv2 import HeadV2, multiscale_patch
 from fast_tensor import tensor_cols_fast
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-OUT = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/figs"
-SRC = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/synthetic_KITTI/synthetic"
-PACK = "/fs/nexus-scratch/tuxunlu/kitti_t16e/test"
-PM = "/fs/nexus-scratch/tuxunlu/git/PRE-Mamba/exp/event_rain/SYTHETIC/result"
+TMP = f"{C.CKPT}"
+OUT = f"{C.FIGS}"
+SRC = f"{C.KITTI_SRC}"
+PACK = f"{C.KITTI_PACK}/test"
+PM = f"{C.PM_SYNTH}"
 DEV = "cuda"
 NW, NH = 460, 352
 R, T16 = 256, 16

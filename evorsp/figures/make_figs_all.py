@@ -8,6 +8,13 @@ grid (anchor-vs-frame IoU 1.0000 on both test rates), so its panels are
 pixel-aligned with the others. Each model runs at its own protocol-selected
 threshold; FourierMamba2D keeps its earlier-protocol asterisk.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -20,13 +27,11 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from matplotlib.patches import Patch
 
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 import train_compare as TC
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-OUT = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/figs"
-T16 = "/fs/nexus-scratch/tuxunlu/kitti_t16"
+TMP = f"{C.CKPT}"
+OUT = f"{C.FIGS}"
+T16 = f"{C.WORK / 'kitti_t16'}"
 DEV = "cuda"
 
 INK, INK2, MUTED = "#0b0b0b", "#52514e", "#8a8984"

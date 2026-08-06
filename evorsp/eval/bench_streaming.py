@@ -9,6 +9,13 @@ The dominant term is not compute. A 100 ms accumulation window means the first
 event of a window waits 100 ms for its own decision, whatever the model costs.
 That is reported separately from compute so the two are not conflated.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import statistics
 import sys
 import time
@@ -16,13 +23,12 @@ import time
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 from run_kitti_perevent import sample_at
 from run_kitti_headv3 import HeadV2 as HeadV3
 from gpu_feats import patch_gpu, tensor_gpu
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+TMP = f"{C.CKPT}"
 DEV = "cuda"
 R, T16 = 256, 16
 NW, NH = 1280, 720          # EVK4 native: the deployment sensor

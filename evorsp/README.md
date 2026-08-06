@@ -33,6 +33,59 @@ Corollary, measured in `eval/`: five architectures spanning 28K–265K parameter
 all land within 0.007 of each other once given the same input and supervision.
 Architecture is not the lever; input representation and supervision are.
 
+## Running it on your own machine and your own data
+
+Nothing here has a path baked in any more. Every location resolves from
+environment variables, with defaults under the repository, so the only setup is
+telling it where your data lives.
+
+    pip install -r evorsp/requirements.txt
+    export EVORSP_DATA=/where/your/datasets/live     # optional
+    export EVORSP_WORK=/where/caches/should/go       # optional, needs ~50 GB
+    python evorsp/config.py                          # prints what resolved where
+
+Then run the model on your events:
+
+    python evorsp/derain.py --events /path/to/your/data --out /path/to/output
+
+`--events` takes a directory of `.npz` windows, or one `.npz` holding a longer
+stream together with `--window N` to slice it. Each file needs four equal-length
+arrays:
+
+| array | meaning |
+|---|---|
+| `x`, `y` | pixel coordinates, integer |
+| `t` | timestamp — **any unit, any origin**; each window is normalised to its own span |
+| `p` | polarity; `1` is treated as ON, anything else as OFF |
+
+Sensor size is inferred from the data; pass `--width/--height` if your recording
+never lights the last row or column. Output is one `.npz` per window holding the
+kept events plus `keep`, the boolean mask over the input, so nothing is lost.
+
+If your dataset has per-event labels, score it directly:
+
+    python evorsp/derain.py --events <dir> --labels <dir> --labels-rain-is 0
+
+`--labels-rain-is` is mandatory with `--labels` and has no default on purpose:
+the two conventions are both common, real EVK4 uses **0 = rain**, and guessing
+wrong silently inverts every number rather than failing.
+
+**Which checkpoint.** `--ckpt` defaults to `ctx_f4o16_c2` (KITTI-trained,
+28,719 params, event-DA 0.9332). Use `rctx_ours_f4o1_c2` for real footage and
+`spac_f4o16_c2` for SPAC-like synthetic. `python evorsp/derain.py --ckpt list`
+prints the rest. The threshold defaults to the per-frame self-prior, which needs
+no labels at deployment; `--tau-trained` uses the value selected on validation.
+
+Verified faithful: `rctx_ours_f4o1_c2` on real EVK4 `scene4/rain_13` scores
+**0.8661** through this path, matching the training run's own recorded number to
+four decimals.
+
+**Training on your new dataset** needs labels, since this is supervised. Copy
+`data/build_real_e.py` (per-event labels) or `data/kitti_build_e.py` (a separate
+clean stream, labels by exact set subtraction), point it at `C.CUSTOM_SRC`,
+then train with `train/run_kitti_ctx.py --tfront 4 --ctx 2`. The pack format is
+the contract between the two; `build_real_e.py`'s docstring specifies it.
+
 ## Layout
 
     model/       trunk (rsp_3d) + the earlier bodies behind a shared frontend
@@ -73,11 +126,10 @@ Order matters: build packs → build feature caches → train → evaluate.
 - **Pixel DA does not predict event DA.** Every number on the original
   leaderboard is a pixel-DA number and is internally consistent as such, but
   must not be read as per-event deraining quality.
-- **`model/bodies_e.py` and `train/run_kitti_fair.py` import from
-  `/fs/nexus-scratch/tuxunlu/git/Event-Deraining`, which no longer exists on
-  disk** (it disappeared mid-campaign, taking the 38 GB SPAC source with it).
-  Those two scripts are kept as the record of what was run; they will not
-  execute until that path is restored.
+- **`model/bodies_e.py` and `train/run_kitti_fair.py` need a tree that vanished
+  mid-campaign**, taking the 38 GB SPAC source with it. They now resolve it
+  through `C.LEGACY_ED` (`$EVORSP_LEGACY`); point that at a copy if you have
+  one. Kept as the record of what was run — nothing else depends on them.
 
 ## Not in git
 

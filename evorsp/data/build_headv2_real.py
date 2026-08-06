@@ -11,8 +11,15 @@ Same contents as build_headv2_cache.py (KITTI) but:
   * features computed with gpu_feats.tensor_gpu (4 ms at 100K events against
     ~200 ms for the NumPy version), so this runs in minutes.
 
-Output: /fs/nexus-scratch/tuxunlu/real_headv2/{scene}/{rain_k}/NNNN.npz
+Output: $EVORSP_WORK/real_headv2/{scene}/{rain_k}/NNNN.npz
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -20,12 +27,11 @@ import sys
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from gpu_feats import tensor_gpu
 
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
-PACK = "/fs/nexus-scratch/tuxunlu/real_t16e"
-OUT = "/fs/nexus-scratch/tuxunlu/real_headv2"
+S = f"{C.REAL_SRC}"
+PACK = f"{C.REAL_PACK}"
+OUT = f"{C.REAL_HEAD}"
 NW, NH, R, T16 = 1280, 720, 256, 16
 SCALES, SLICE_US, TAU_US = [4, 16, 64], 1_000, 5_000
 N_SAMP = 24000

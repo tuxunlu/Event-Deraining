@@ -44,6 +44,13 @@ The AUC is jitter-invariant out to 1 ms (0.6918 -> 0.6916), so it is genuine
 ms-scale structure and not the timestamp-collision artefact that SPAC also has
 (rain averages 323 events per exact nanosecond against background's 8.8).
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import math
 
 import torch
@@ -217,7 +224,6 @@ class DFFN3T(nn.Module):
     def __init__(self, T=4, n_t=3, dim=32, num_blocks=4, **kw):
         super().__init__()
         import sys
-        sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
         from model.DynamicFourierFilterNet import DynamicFourierFilterNet
         self.front = TemporalFrontend(n_t, T)
         cin = self.front.out_chans * 2

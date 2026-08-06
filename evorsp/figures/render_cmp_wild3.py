@@ -15,6 +15,13 @@ earlier in the campaign as the Bayes rule for balanced accuracy (pixel-level
 corr +0.9918 with the oracle threshold); a fixed rig-selected tau under-derains
 badly on unseen storms (keep-rate 0.80-0.92 vs 0.61-0.69 for self-prior).
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -23,15 +30,14 @@ import cv2
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 from run_kitti_perevent import sample_at
 from run_real_perevent import HeadV2 as HeadR
 from gpu_feats import patch_gpu, tensor_gpu
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-OUT = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/figs"
-S5 = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_realworld/scene5/merge_data"
+TMP = f"{C.CKPT}"
+OUT = f"{C.FIGS}"
+S5 = f"{C.REAL_WILD_SRC}/scene5/merge_data"
 DEV = "cuda"
 NW, NH = 1280, 720
 R, T16 = 256, 16

@@ -11,6 +11,13 @@ spread > +/-0.15 ms (GPU stages).
 Honesty note: the head's feature stages are unoptimised NumPy on CPU. They are
 reported as measured, not as they could be after a GPU port.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import statistics
 import sys
 import time
@@ -18,13 +25,12 @@ import time
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 from run_kitti_perevent import sample_at
 from run_kitti_headv3 import HeadV2 as HeadV3, multiscale_patch
 from fast_tensor import tensor_cols_fast
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+TMP = f"{C.CKPT}"
 DEV = "cuda"
 NW, NH, R, T16 = 460, 352, 256, 16
 torch.backends.cudnn.benchmark = True

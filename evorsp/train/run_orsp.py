@@ -4,9 +4,14 @@ A at 10 epochs is 0.8173, so that margin is partly faster convergence.
 Also runs the F3 fix (tanh scale >= 2) the critic identified: as shipped,
 max sum_j M_j = 0.6099, so a true notch is unreachable at 100% of bins.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import sys, json, os
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from torch.utils.data import DataLoader
 import train_compare as TC
 from rsp_model import ORSPNet
@@ -44,4 +49,4 @@ matched-protocol reference (10 epochs, same harness):
   A. DFFN baseline            72,074  0.8173      E. SpatialGainNet   52,714  0.8509
   B. FSSNet (SSM)             48,650  0.8346      F. SpatialGain noFFT 51,594 0.8469
   D. DFFN + global context    95,946  0.8362      G. SpatialGain local 52,714 0.8449""")
-json.dump(res, open("/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp/orsp_results.json","w"), indent=2)
+json.dump(res, open(f"{C.CKPT}/orsp_results.json","w"), indent=2)

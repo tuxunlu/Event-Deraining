@@ -10,9 +10,14 @@ Arms
   balanced   loss = balanced accuracy surrogate over LIT pixels only
   gainsplit  gate = unbounded per-band constant + bounded spatial residual
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import argparse, json, os, sys, time
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 
 import numpy as np
 import torch
@@ -21,7 +26,7 @@ from torch.utils.data import DataLoader
 
 import train_compare as TC
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+TMP = f"{C.CKPT}"
 
 
 def lit_bce(logits, raw, merge):

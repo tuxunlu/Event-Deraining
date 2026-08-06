@@ -4,12 +4,18 @@ Same bar as before: proceed only if some column reaches AUC >= 0.60 on
 PERSISTENT RAIN vs SCENE. Reference to beat: ITI burstiness 0.864; the motion
 cues died at 0.599.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob, os, sys
 import numpy as np
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from recur_feats import Recur, NAMES, NW, NH
 
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
+S = f"{C.REAL_SRC}"
 SEQS = [("scene1","rain_2"), ("scene3","rain_9"), ("scene4","rain_13"), ("scene2","rain_5")]
 
 def auc(pos, neg):

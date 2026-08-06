@@ -1,8 +1,13 @@
 """Run SpatialGainNet through the IDENTICAL pilot protocol as arms A-D
 (same RainSet, same loss, same optimiser/schedule, same threshold sweep)."""
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import sys, json
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 
 import os
 import numpy as np
@@ -50,4 +55,4 @@ reference (identical protocol, run earlier):
   B. FSSNet (freq selective scan)     48,650   best 0.8346
   C. FSSNet + polar order             48,650   best 0.8359
   D. DFFN + global spectral context   95,946   best 0.8362""")
-json.dump(res, open("/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp/spatial_results.json", "w"), indent=2)
+json.dump(res, open(f"{C.CKPT}/spatial_results.json", "w"), indent=2)

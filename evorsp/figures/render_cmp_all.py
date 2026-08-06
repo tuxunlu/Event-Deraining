@@ -20,6 +20,13 @@ the ON-only eFFT pipeline, so their `lit` mask has no entry for pixels holding
 only OFF events and every blue event is structurally discarded. That is the
 supervision defect the campaign found, visible directly.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -28,19 +35,17 @@ import cv2
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
 import train_compare as TC
 from rsp_3d import ORSPNet3D
 from run_kitti_perevent import sample_at
 from run_kitti_headv3 import HeadV2 as HeadV3, multiscale_patch
 from gpu_feats import patch_gpu, tensor_gpu
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-OUT = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/figs"
-SRC = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/synthetic_KITTI/synthetic"
-PACK = "/fs/nexus-scratch/tuxunlu/kitti_t16e/test"
-PM = "/fs/nexus-scratch/tuxunlu/git/PRE-Mamba/exp/event_rain/SYTHETIC/result"
+TMP = f"{C.CKPT}"
+OUT = f"{C.FIGS}"
+SRC = f"{C.KITTI_SRC}"
+PACK = f"{C.KITTI_PACK}/test"
+PM = f"{C.PM_SYNTH}"
 DEV = "cuda"
 NW, NH, R, T16 = 460, 352, 256, 16
 FPS, NPER = 8, 100

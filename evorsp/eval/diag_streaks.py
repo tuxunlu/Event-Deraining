@@ -17,6 +17,13 @@ PRE-Mamba clears them. Six competing explanations, measured on the same frames:
   H6 STAGE         does the TRUNK keep them and the head fail to fix, or does the
                    head itself introduce them?
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -24,14 +31,13 @@ import sys
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 from run_kitti_perevent import sample_at
 from run_real_perevent import HeadV2 as HeadR
 from gpu_feats import patch_gpu, tensor_gpu
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
+TMP = f"{C.CKPT}"
+S = f"{C.REAL_SRC}"
 DEV = "cuda"
 NW, NH, R, T16 = 1280, 720, 256, 16
 SEQS = [("scene1", "rain_2"), ("scene4", "rain_13")]

@@ -9,17 +9,24 @@ Mirror of spac_build.py with three differences:
     train = 14 intensities, val = {20,80}mm, test = {50,150}mm. This matches the
     2D leaderboard (run_protocol.py) so numbers are directly comparable.
 
-Output: /fs/nexus-scratch/tuxunlu/kitti_t16/{split}/{mm}/NNNN.npz
+Output: $EVORSP_WORK/kitti_t16/{split}/{mm}/NNNN.npz
         on/off: uint8-packed [T=16,256,256] occupancy; gt: packed [256,256].
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 from multiprocessing import Pool
 
 import numpy as np
 
-S = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/synthetic_KITTI/synthetic"
-OUT = "/fs/nexus-scratch/tuxunlu/kitti_t16"
+S = f"{C.KITTI_SRC}"
+OUT = f"{C.WORK / 'kitti_t16'}"
 T, R = 16, 256
 SRC_W, SRC_H = 460, 352
 

@@ -17,9 +17,14 @@ Loss:  L = (1-alpha) * balanced_gt  +  alpha * kd
 Precedents: SED arXiv:2606.14631 (554x compression, plain output-level KL,
 weight 1.0, no temperature); LiteDenoiseNet arXiv:2605.03680 (9:1 teacher:GT).
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import argparse, json, os, sys, time
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 
 import numpy as np
 import torch
@@ -29,7 +34,7 @@ from torch.utils.data import DataLoader, Dataset
 import train_compare as TC
 from run_exp import balanced_loss
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+TMP = f"{C.CKPT}"
 CACHE = f"{TMP}/teacher_logits_train.f16"
 
 

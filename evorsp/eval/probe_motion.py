@@ -21,6 +21,13 @@ scene), with the same >= 0.60 bar the ITI probe used, and with the already-known
 ITI result as the reference to beat:
     burstiness (16 px)  AUC 0.864
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -28,9 +35,8 @@ import sys
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
+S = f"{C.REAL_SRC}"
 DEV = "cuda"
 NW, NH = 1280, 720
 SEQS = [("scene1", "rain_2"), ("scene3", "rain_9"),

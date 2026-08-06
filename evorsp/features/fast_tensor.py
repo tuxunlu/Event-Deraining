@@ -10,6 +10,13 @@ Equivalence against the original is asserted in __main__ (max |diff| < 1e-6).
 Kept separate from eigenpyramid.py so the falsifier result that module produced
 (0.7504 event-BA) remains reproducible from the code that produced it.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import numpy as np
 
 
@@ -101,7 +108,7 @@ if __name__ == "__main__":
     # so it only runs at those scales; the fast version is parameterised.
     # eigenpyramid.py runs its whole falsifier sweep at module level, so it must
     # NOT be imported. Lift just the reference function out of the source text.
-    src = open("/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp/eigenpyramid.py").read()
+    src = open(f"{C.CKPT}/eigenpyramid.py").read()
     body = src[src.index("def tensor_cols"):src.index("def count_cols")]
     ns = {"np": np, "NW": NW, "NH": NH, "TSCALES": SCALES, "SLICE_US": SLICE}
     exec(body, ns)

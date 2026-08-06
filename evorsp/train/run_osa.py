@@ -1,6 +1,10 @@
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import sys, os, json
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 import torch
 from torch.utils.data import DataLoader
 import train_compare as TC
@@ -27,7 +31,7 @@ res.append(TC.run("H2. OSA-Net rate only (no bank)",
 res.append(TC.run("H3. OSA-Net no FFT at all",
                   lambda: OSANet(dim=32, num_blocks=4, use_bank=False, use_rate=False),
                   tr, va, EP))
-json.dump(res, open("/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp/osa_results.json", "w"), indent=2)
+json.dump(res, open(f"{C.CKPT}/osa_results.json", "w"), indent=2)
 
 print("\n============ SUMMARY ============")
 for r in res:

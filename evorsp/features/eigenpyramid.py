@@ -10,11 +10,18 @@ all degree-zero homogeneous in event mass.
 
 KILL: best-tau scene-disjoint event-BA <= 0.7088 (< +0.02 over 0.6888).
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
+S = f"{C.REAL_SRC}"
 NW, NH = 1280, 720
 CSCALES = [1, 4, 16, 64]          # count pyramid (the 0.6888 baseline features)
 TSCALES = [4, 16, 64]             # structure-tensor scales

@@ -11,9 +11,14 @@ is fine for a relative ranking but not for a number anyone would publish.
 Protocol from the config: 50 epochs, batch 4, AdamW lr 5e-4 wd 5e-3,
 CosineAnnealingLR T_max=50 eta_min=1e-6, grad-clip 1.0, BCE on the binary mask.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import argparse, json, os, sys, time
-sys.path.insert(0, "/fs/nexus-scratch/tuxunlu/git/Event-Deraining")
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 
 import numpy as np
 import torch
@@ -22,7 +27,7 @@ from torch.utils.data import DataLoader
 import train_compare as TC
 from run_exp import balanced_loss, lit_bce
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+TMP = f"{C.CKPT}"
 
 
 def make(name):

@@ -13,6 +13,13 @@ persistent-rain vs scene, the feature lacks the signal and retraining is NOT
 justified. For reference the existing per-event features already reach ~0.84 on
 the easy population, so a column that only helps there adds nothing here.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -20,10 +27,9 @@ import sys
 import numpy as np
 import torch
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from iti_feats import iti_gpu
 
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
+S = f"{C.REAL_SRC}"
 DEV = "cuda"
 NW, NH = 1280, 720
 SEQS = [("scene1", "rain_2"), ("scene4", "rain_13")]

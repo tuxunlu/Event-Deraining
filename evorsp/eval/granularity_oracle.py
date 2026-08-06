@@ -21,12 +21,19 @@ Reported for the cross product of
 so the 0.212 event-DA gap can be attributed to spatial vs temporal output
 resolution before any model is built.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 
 import numpy as np
 
-S = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/dataset/synthetic_KITTI/synthetic"
+S = f"{C.KITTI_SRC}"
 SRC_W, SRC_H = 460, 352
 SPATIAL = [("256^2 (ours)", 256, 256), ("native 460x352", SRC_W, SRC_H)]
 TEMPORAL = [1, 4, 8, 16, 20, 64]

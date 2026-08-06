@@ -12,14 +12,21 @@ GT convention matches KITTI exactly: the GT plane marks pixels with >=1 ON
 signal event (the eFFT pipeline was ON-only), lit = ON-union of the rainy
 stream, rain pixels = lit AND NOT gt.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 from multiprocessing import Pool
 
 import numpy as np
 
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
-OUT = "/fs/nexus-scratch/tuxunlu/real_t16"
+S = f"{C.REAL_SRC}"
+OUT = f"{C.WORK / 'real_t16'}"
 T, R = 16, 256
 W, H = 1280, 720
 

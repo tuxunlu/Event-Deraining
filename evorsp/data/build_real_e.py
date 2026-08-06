@@ -20,16 +20,23 @@ Stores per (time-bin, pixel) cell of a T=16 x 256 x 256 grid:
 so any T_out dividing 16 is derived by summing counts, and the event-level
 metric is computable exactly from the packs with no raw-event pass.
 
-Output: /fs/nexus-scratch/tuxunlu/real_t16e/{scene}/{rain_k}/NNNN.npz
+Output: $EVORSP_WORK/real_t16e/{scene}/{rain_k}/NNNN.npz
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 from multiprocessing import Pool
 
 import numpy as np
 
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
-OUT = "/fs/nexus-scratch/tuxunlu/real_t16e"
+S = f"{C.REAL_SRC}"
+OUT = f"{C.REAL_PACK}"
 T, R = 16, 256
 W, H = 1280, 720
 

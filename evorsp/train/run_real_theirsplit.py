@@ -8,6 +8,13 @@ SemSegTester formula), tau selected on their val split by event-DA, frame-mean
 on their test split. DA is invariant to label orientation, so the headline
 number is comparable regardless of the 0/1 naming question.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import json
 import os
@@ -19,12 +26,11 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
-sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
 
-ROOT = "/fs/nexus-scratch/tuxunlu/real_t16"
-S = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
+ROOT = f"{C.WORK / 'real_t16'}"
+S = f"{C.REAL_SRC}"
+TMP = f"{C.CKPT}"
 DEV = "cuda"
 T_BUILD, T, R = 16, 4, 256
 W, H = 1280, 720

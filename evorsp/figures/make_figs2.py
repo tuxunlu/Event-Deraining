@@ -12,6 +12,13 @@ comparable to each other and a figure that hides that is worse than no figure:
     because triage overstated every gain by 3-5x;
   * every ablation is compared against ITS OWN control, named on the figure.
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import json
 
@@ -20,8 +27,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
-OUT = "/fs/nexus-scratch/tuxunlu/git/event-based-deraining/figs"
+TMP = f"{C.CKPT}"
+OUT = f"{C.FIGS}"
 
 INK, INK2, MUTED = "#0b0b0b", "#52514e", "#8a8984"
 SURF, GRID = "#fcfcfb", "#e3e2dd"

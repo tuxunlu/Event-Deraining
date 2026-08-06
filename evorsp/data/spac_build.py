@@ -21,6 +21,13 @@ Output per frame, packed to bits:
     off  uint8[T*256*256/8]   rainy stream, OFF events
     gt   uint8[256*256/8]     clean stream, ON events, union over the window
 """
+
+import os as _os
+import sys as _sys
+_d = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:0] = [_d, _os.path.dirname(_d)]
+import config as C
+C.bootstrap()
 import glob
 import os
 import sys
@@ -28,10 +35,10 @@ from multiprocessing import Pool
 
 import numpy as np
 
-S = "/fs/nexus-scratch/tuxunlu/git/Event-Deraining/dataset/synthetic/synthetic_SPAC"
+S = f"{C.SPAC_SRC}"
 MERGE = f"{S}/SPAC-dataset-merge/events"
 GT = f"{S}/SPAC-dataset-event/gt"
-OUT = "/fs/nexus-scratch/tuxunlu/spac_t16"
+OUT = f"{C.WORK / 'spac_t16'}"
 
 T = 16
 R = 256
