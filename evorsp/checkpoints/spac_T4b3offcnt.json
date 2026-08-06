@@ -1,0 +1,14 @@
+{
+  "tag": "T4b3offcnt",
+  "T": 4,
+  "params": 28142,
+  "val": 0.817383389857912,
+  "tau": 0.85,
+  "test": 0.8245073793764951,
+  "test_best": 0.840681443099704,
+  "blocks": 3,
+  "off": true,
+  "counts": true,
+  "swa_used": false,
+  "seed": 0
+}

@@ -1,0 +1,12 @@
+{
+  "tag": "reale_theirs_o16",
+  "split": "theirs",
+  "tout": 16,
+  "params": 28555,
+  "seed": 0,
+  "tau": 0.75,
+  "val": 0.8176727074250524,
+  "test": 0.8028186318737484,
+  "test_best": 0.811945539856871,
+  "n_test": 1730
+}

@@ -1,0 +1,9 @@
+{
+  "tag": "real_evorsp_theirsplit",
+  "params": 28060,
+  "seed": 0,
+  "val_px": 0.8351613767514414,
+  "tau_event": 0.7999999999999999,
+  "test_event_da": 0.7984689427823819,
+  "test_best": 0.800573235631474
+}

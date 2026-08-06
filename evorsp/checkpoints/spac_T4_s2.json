@@ -1,0 +1,14 @@
+{
+  "tag": "T4_s2",
+  "T": 4,
+  "params": 36952,
+  "val": 0.7961642825526318,
+  "tau": 0.85,
+  "test": 0.782453893196516,
+  "test_best": 0.7998380407490783,
+  "blocks": 4,
+  "off": false,
+  "counts": false,
+  "swa_used": false,
+  "seed": 2
+}

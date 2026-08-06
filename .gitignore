@@ -169,3 +169,14 @@ cython_debug/
 .idea/
 
 *.png
+
+# Campaign artifacts that must not enter git history
+# Videos: figs/ holds 2.1 GB of renders, several files >100 MB (GitHub's hard
+# limit) and no git-lfs is configured. They are reproducible from
+# evorsp/figures/render_*.py and are kept on scratch only.
+figs/*.mp4
+# FourierMamba checkpoints are 103-409 MB each; every other checkpoint is <1 MB
+evorsp/checkpoints/*fmamba*.pt
+# ...but the campaign figures ARE deliverables (the blanket *.png rule above
+# would otherwise drop them). Videos stay excluded, see figs/*.mp4 above.
+!figs/*.png
