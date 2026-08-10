@@ -36,8 +36,10 @@ import torch
 
 from rsp_3d import ORSPNet3D
 from run_kitti_perevent import sample_at
-from run_real_perevent import HeadV2 as HeadR
+from run_real_full import HeadV2 as HeadR
 from gpu_feats import patch_gpu, tensor_gpu
+from iti_feats import iti_gpu
+from recur_feats import Recur
 
 TMP = f"{C.CKPT}"
 OUT = f"{C.FIGS}"
@@ -53,9 +55,10 @@ SEQS = [("scene1", "rain_2"), ("scene2", "rain_5"),
 # fixed-target model: trained on PRE-Mamba's split with the
 # count-majority, polarity-complete supervision (test event-DA 0.8066
 # vs 0.7985 for the old ON-only OR target, vs PRE-Mamba 0.7708)
-# BEST real model on PRE-Mamba's own split: trunk + per-event head v3,
-# test event-DA 0.8444 (trunk-only 0.8066, PRE-Mamba 0.7708).
-hck = torch.load(f"{TMP}/realph_theirs.pt", map_location="cpu")
+# BEST real model on PRE-Mamba's own split: trunk + per-event head v3 with
+# the ITI-regularity and recurrence columns, test event-DA 0.8620
+# (head-only 0.8444, trunk-only 0.8066, PRE-Mamba 0.7708).
+hck = torch.load(f"{TMP}/realfull_theirs.pt", map_location="cpu")
 net = ORSPNet3D(T=4, num_blocks=3, use_off=True, dilations=(1, 8, 32, 64),
                 out_chans=1)
 net.load_state_dict(hck["trunk"])
@@ -85,6 +88,15 @@ def draw(x, y, p, keep=None):
         a = np.clip(0.55 + cnt[m] / 6.0, 0.55, 1.0)[:, None]
         img[m] = (img[m] * (1 - a) + col[None, :] * a).astype(np.uint8)
     return img
+
+
+# The checkpoint's own validation-selected threshold, i.e. the operating point
+# the reported 0.8620 event-DA corresponds to. streak_sweep.py maps the rest of
+# the curve: t=0.54 keeps 85% of persistent scene at 0.237 rain, t=0.42 keeps
+# 90% at 0.325. Higher tau = less rain AND less scene; 0.50 is the honest
+# default rather than the one that flatters the picture.
+TAU = 0.50
+RECUR = Recur(nw=NW, nh=NH)
 
 
 @torch.no_grad()
@@ -118,13 +130,21 @@ def ours_keep(x, y, t, p):
                    xs, ys, tns)
     # EVK4 stamps are MICROseconds: slice 1000 us, tau 5000 us
     pv = patch_gpu(xg, yg, tns[0], pg, NW, NH)[None]
-    tc = tensor_gpu(xg, yg, tg, 5_000, [4, 16, 64], NW, NH, 1_000)[None]
+    tc = tensor_gpu(xg, yg, tg, 5_000, [4, 16, 64], NW, NH, 1_000)
+    # +8 inter-arrival regularity, +12 recurrence. RECUR IS CAUSAL: compute
+    # features first, push after -- exactly as build_recur_real.py did.
+    # Reading the current window into its own history would leak.
+    it = iti_gpu(xg, yg, tg, nw=NW, nh=NH)
+    xi, yi = x.astype(np.int64), y.astype(np.int64)
+    rc = torch.from_numpy(RECUR.features(xi, yi, np.arange(len(x)))).to(DEV)
+    RECUR.push(xi, yi)
+    tc = torch.cat([tc, it, rc], 1)[None]
     ev = torch.sigmoid(head(lv, fv, pv, tc, tns[..., None]))[0, :, 0]
-    return (ev > float(ev.mean())).cpu().numpy()
+    return (ev > (TAU if TAU is not None else float(ev.mean()))).cpu().numpy()
 
 
 COLS = ["Input (rainy, native 1280x720)", "Ground truth (labelled scene events)",
-        "EvORSP-3T/E + per-event head  53,630 params  (0.8444)",
+        "EvORSP-3T/E + head + ITI + recur  54,910 params  (0.8620, tau 0.50)",
         "PRE-Mamba (ICCV'25)  264,632 params  (0.7708)"]
 GAP, HDR, FTR = 8, 56, 36
 Wc = GAP + 2 * (NW + GAP)
@@ -137,17 +157,27 @@ for si, (sc, lv) in enumerate(SEQS):
     files = sorted(glob.glob(f"{S}/{sc}/merge_data/{lv}/*.npz"))
     step = max(1, len(files) // NPER)
     n_ok = 0
-    for i, f in enumerate(files[::step][:NPER]):
+    RECUR.reset()          # history must not leak across sequences
+    # Walk EVERY frame so the recurrence buffer sees consecutive windows the
+    # way training did, but render only every step-th. Feeding it a subsampled
+    # history would silently change what "persistent over 8 windows" means.
+    for i, f in enumerate(files):
+        if i % step or n_ok >= NPER:
+            with np.load(f) as d:
+                RECUR.push(d["x"].astype(np.int64), d["y"].astype(np.int64))
+            continue
         base = os.path.basename(f)
         lp = f"{S}/{sc}/labels/labels_{lv}/labels_{base}".replace(".npz", ".npy")
         pp = f"{PM}/{sc}/{lv}/{base.replace('.npz', '')}_pred.npy"
-        if not (os.path.exists(lp) and os.path.exists(pp)):
-            continue
         with np.load(f) as d:
             x, y, t, p = d["x"], d["y"], d["t"], d["p"]
-        lab = np.load(lp).astype(np.int64)
-        pred = np.load(pp)
-        if len(lab) != len(x) or len(x) < 200 or len(pred) < len(x):
+        skip = not (os.path.exists(lp) and os.path.exists(pp))
+        if not skip:
+            lab = np.load(lp).astype(np.int64)
+            pred = np.load(pp)
+            skip = (len(lab) != len(x) or len(x) < 200 or len(pred) < len(x))
+        if skip:                      # still advance the causal buffer
+            RECUR.push(x.astype(np.int64), y.astype(np.int64))
             continue
         panels = [draw(x, y, p),
                   draw(x, y, p, lab == 1),

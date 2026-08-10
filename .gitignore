@@ -180,3 +180,7 @@ evorsp/checkpoints/*fmamba*.pt
 # ...but the campaign figures ARE deliverables (the blanket *.png rule above
 # would otherwise drop them). Videos stay excluded, see figs/*.mp4 above.
 !figs/*.png
+
+# renderers write intermediate raw video into the checkpoints dir (C.CKPT);
+# these are hundreds of MB and exceed GitHub hard limits
+evorsp/checkpoints/*.mp4

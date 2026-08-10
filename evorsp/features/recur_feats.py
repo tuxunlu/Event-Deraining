@@ -42,6 +42,11 @@ class Recur:
         self.strips = []                             # normalised strip counts
         self.nb = nw // STRIP + 1
 
+    def reset(self):
+        """Clear history. MUST be called between sequences."""
+        self.hist = {s: [] for s in SCALES}
+        self.strips = []
+
     def _masks(self, x, y):
         out = {}
         for s in SCALES:

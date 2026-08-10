@@ -1,4 +1,13 @@
-"""Head v2: oriented + multi-scale per-event features, mixed-cell sampling quota.
+"""DIRECTION 1: frame-adaptive atom orientation.
+
+Identical to run_real_full.py except the trunk's atom bank re-steers itself to
+each frame's dominant orientation (see rsp_steer3d.py). Two extra scalars per
+block, six for the trunk, both zero-init so this starts bit-identical to the
+frozen-bank model.
+
+Control: run_real_full.py --split ours -> rig test event-DA 0.8831.
+"""
+_ORIG = """Head v2: oriented + multi-scale per-event features, mixed-cell sampling quota.
 
 Head v1 (plain 3x3x8 count patch, uniform sampling) measured:
     mixed-cell recall  0.4005 (trunk) -> 0.5562 @1 epoch -> 0.5253 @40 epochs
@@ -39,6 +48,7 @@ from torch.utils.data import DataLoader, Dataset
 
 sys.path.insert(0, "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp")
 from rsp_3d import ORSPNet3D
+from rsp_steer3d import ORSPNet3DSteer
 from run_kitti_perevent import sample_at
 from fast_tensor import tensor_cols_fast
 
@@ -202,7 +212,7 @@ def main():
     a = ap.parse_args()
     torch.manual_seed(a.seed)
     np.random.seed(a.seed)
-    tag = f"realfull_{a.split}" + (f"_s{a.seed}" if a.seed else "")
+    tag = f"realsteer_{a.split}" + (f"_s{a.seed}" if a.seed else "")
 
     dl = dict(num_workers=3, pin_memory=True, persistent_workers=True)
     ds = {s: CacheSet(s, a.split) for s in ("train", "val", "test")}
@@ -211,10 +221,11 @@ def main():
     va = DataLoader(ds["val"], batch_size=a.batch, **dl)
     te = DataLoader(ds["test"], batch_size=a.batch, **dl)
 
-    trunk = ORSPNet3D(T=4, dilations=(1, 8, 32, 64), num_blocks=3,
-                      use_off=True, out_chans=1).to(DEV)
-    trunk.load_state_dict(torch.load(f"{TMP}/{a.init}.pt",
-                                     map_location="cpu")["state_dict"])
+    trunk = ORSPNet3DSteer(T=4, dilations=(1, 8, 32, 64), num_blocks=3,
+                           use_off=True, out_chans=1).to(DEV)
+    nnew = trunk.load_frozen(torch.load(f"{TMP}/{a.init}.pt",
+                                        map_location="cpu")["state_dict"])
+    print(f"  loaded frozen-bank trunk; {nnew} new steering scalars", flush=True)
     # L3a: sample trunk features from EVERY block (dilations 1/8/32/64 give
     # genuinely different spatial context) instead of only the final map.
     head = HeadV2(feat_dim=32 * (len(trunk.blocks) + 1)).to(DEV)

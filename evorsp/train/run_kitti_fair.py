@@ -118,6 +118,13 @@ def main():
     ap.add_argument("--epochs", type=int, default=50)
     ap.add_argument("--batch", type=int, default=4)
     ap.add_argument("--amp", action="store_true")
+    ap.add_argument("--bf16", action="store_true",
+                    help="bfloat16 autocast. FourierMamba's rfft2 uses the "
+                         "default norm='backward', so its fp16 GRADIENTS "
+                         "overflow: GradScaler then skips nearly every step "
+                         "and the model never leaves initialisation (observed "
+                         "as train=nan with event-DA pinned at 0.5273). bf16 "
+                         "has fp32 exponent range and cannot overflow.")
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
 
@@ -141,19 +148,24 @@ def main():
     opt = torch.optim.AdamW(m.parameters(), lr=5e-4, weight_decay=5e-3)
     sch = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=a.epochs,
                                                      eta_min=1e-6)
-    scaler = torch.cuda.amp.GradScaler(enabled=a.amp)
+    scaler = torch.cuda.amp.GradScaler(enabled=a.amp and not a.bf16)
+    _adt = torch.bfloat16 if a.bf16 else torch.float16
     best, best_tau, best_sd = -1.0, 0.5, None
     t0 = time.time()
     for ep in range(1, a.epochs + 1):
         m.train()
         tot = nb = 0
+        nskip = 0
         for on, off, tgt, lit, bg, rn, _ in tr:
-            with torch.cuda.amp.autocast(enabled=a.amp):
+            with torch.cuda.amp.autocast(enabled=a.amp or a.bf16, dtype=_adt):
                 out = m(on.to(DEV, non_blocking=True),
                         x_off=off.to(DEV, non_blocking=True))
                 loss = lit_bce(out.float(), tgt.to(DEV, non_blocking=True),
                                lit.to(DEV, non_blocking=True))
             opt.zero_grad(set_to_none=True)
+            if not torch.isfinite(loss):
+                nskip += 1
+                continue
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
             torch.nn.utils.clip_grad_norm_(m.parameters(), 1.0)

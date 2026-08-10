@@ -10,10 +10,12 @@ PRE-Mamba is absent by necessity: scene5 has no entry in its split table, so no
 predictions exist for it and running its released checkpoint would require the
 architecture variant its public code cannot construct.
 
-Thresholding: per-frame SELF-PRIOR tau = mean p over lit pixels. Established
-earlier in the campaign as the Bayes rule for balanced accuracy (pixel-level
-corr +0.9918 with the oracle threshold); a fixed rig-selected tau under-derains
-badly on unseen storms (keep-rate 0.80-0.92 vs 0.61-0.69 for self-prior).
+Thresholding: FIXED tau = 0.35 for both panels. The per-frame self-prior used
+earlier is the better deployment rule, but it re-centres on every frame and
+would absorb exactly the decision shift adaptation produced -- the un-adapted
+model keeps 84% of wild events at this tau and the adapted one 57%, and
+self-prior would erase that gap by construction. Fixed tau isolates the
+adaptation as the only variable.
 """
 
 import os as _os
@@ -32,8 +34,10 @@ import torch
 
 from rsp_3d import ORSPNet3D
 from run_kitti_perevent import sample_at
-from run_real_perevent import HeadV2 as HeadR
+from run_real_full import HeadV2 as HeadR
 from gpu_feats import patch_gpu, tensor_gpu
+from iti_feats import iti_gpu
+from recur_feats import Recur
 
 TMP = f"{C.CKPT}"
 OUT = f"{C.FIGS}"
@@ -47,8 +51,8 @@ RECS = ["rain_1", "rain_9", "rain_18", "rain_26"]
 # BEST real models: trunk + per-event head v3, decisions made PER EVENT.
 # scene-disjoint 0.8686 (trunk-only 0.8298); PRE-Mamba split 0.8444 (0.8066).
 models, heads, hooks = {}, {}, {}
-for tag, f in (("+ per-event head  (scene-disjoint)  0.8686", "realph_ours"),
-               ("+ per-event head  (PRE-Mamba split) 0.8444", "realph_theirs")):
+for tag, f in (("BEFORE adaptation  (rig-trained, 0.8831 on rig)", "realfull_ours"),
+               ("AFTER self-supervised adaptation on wild", "wildadapt")):
     ck = torch.load(f"{TMP}/{f}.pt", map_location="cpu")
     m = ORSPNet3D(T=4, num_blocks=3, use_off=True, dilations=(1, 8, 32, 64),
                   out_chans=1)
@@ -65,7 +69,14 @@ for tag, f in (("+ per-event head  (scene-disjoint)  0.8686", "realph_ours"),
     for bi, blk in enumerate(m.blocks):
         blk.register_forward_hook(
             lambda mod, i, o, st=st, bi=bi: st.__setitem__(bi, o))
-print("per-event head models loaded", flush=True)
+print("before/after adaptation models loaded", flush=True)
+
+# Both panels see IDENTICAL inputs, so any difference is the adaptation alone.
+# Fixed tau rather than the per-frame self-prior: self-prior re-centres itself
+# on every frame and would absorb exactly the shift adaptation produced,
+# hiding the thing this video exists to show.
+TAU = 0.35
+RECUR = Recur(nw=NW, nh=NH)
 
 
 def draw(x, y, p, keep=None):
@@ -111,7 +122,12 @@ def keeps(x, y, t, p):
     ys = torch.from_numpy(y.astype(np.float32))[None].to(DEV)
     # EVK4 stamps are MICROseconds: slice 1000 us, tau 5000 us
     pv = patch_gpu(xg, yg, tns[0], pg, NW, NH)[None]
-    tc = tensor_gpu(xg, yg, tg, 5_000, [4, 16, 64], NW, NH, 1_000)[None]
+    tc = tensor_gpu(xg, yg, tg, 5_000, [4, 16, 64], NW, NH, 1_000)
+    it = iti_gpu(xg, yg, tg, nw=NW, nh=NH)
+    xi, yi = x.astype(np.int64), y.astype(np.int64)
+    rc_ = torch.from_numpy(RECUR.features(xi, yi, np.arange(len(x)))).to(DEV)
+    RECUR.push(xi, yi)                     # features first, push after
+    tc = torch.cat([tc, it, rc_], 1)[None]
     out = {}
     for tag, m in models.items():
         lm = m(on4, x_off=off4)
@@ -121,7 +137,7 @@ def keeps(x, y, t, p):
         fv = sample_at(fm[:, :, None].expand(-1, -1, lm.shape[1], -1, -1),
                        xs, ys, tns)
         ev = torch.sigmoid(heads[tag](lv, fv, pv, tc, tns[..., None]))[0, :, 0]
-        out[tag] = (ev > float(ev.mean())).cpu().numpy()   # self-prior
+        out[tag] = (ev > TAU).cpu().numpy()
     return out
 
 
@@ -140,10 +156,14 @@ for ri, rc in enumerate(RECS):
         continue
     step = max(1, len(files) // NPER)
     n_ok = 0
-    for f in files[::step][:NPER]:
+    RECUR.reset()                     # history must not cross recordings
+    # walk every frame so the recurrence buffer sees consecutive windows as
+    # training did; render only every step-th
+    for fi, f in enumerate(files):
         with np.load(f) as d:
             x, y, t, p = d["x"], d["y"], d["t"], d["p"]
-        if len(x) < 200:
+        if fi % step or n_ok >= NPER or len(x) < 200:
+            RECUR.push(x.astype(np.int64), y.astype(np.int64))
             continue
         km = keeps(x, y, t, p)
         panels = [draw(x, y, p)] + [draw(x, y, p, km[c]) for c in COLS[1:]]
@@ -159,8 +179,9 @@ for ri, rc in enumerate(RECS):
                         cv2.LINE_AA)
             canvas[HDR + 24:HDR + 24 + NH, x0:x0 + NW] = panel
         cv2.putText(canvas, "kept EVENTS at native sensor coordinates; "
-                    "per-frame SELF-PRIOR threshold (tau = mean p over lit, no "
-                    "labels, no tuning). red = ON, blue = OFF. "
+                    "FIXED tau 0.35 for BOTH panels, so the only difference "
+                    "is the adaptation (self-prior would re-centre per frame "
+                    "and hide it). red = ON, blue = OFF. "
                     "No ground truth exists for scene5 -- do not quote numbers.",
                     (GAP + 4, Hc - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.54,
                     (110, 110, 110), 1, cv2.LINE_AA)

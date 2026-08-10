@@ -1,4 +1,22 @@
-"""Head v2: oriented + multi-scale per-event features, mixed-cell sampling quota.
+"""EXPERIMENT B: does predicting future persistence help where labels exist?
+
+Identical to run_real_full.py except for one added AUXILIARY head that predicts,
+per event, whether its pixel is lit in the NEXT window. That target needs no
+labels and is dense -- defined for every event.
+
+The question this answers: the pseudo-label signal works for no-label adaptation
+(wild proxy 0.625 -> 0.870). Is it merely a substitute for supervision, or does
+it carry information the true rig labels do NOT contain? If B beats A on rig
+test, it belongs in the main recipe. If B matches A, it is redundant with
+supervision and is purely a fallback.
+
+A (baseline, run_real_full.py --split ours): rig test event-DA 0.8831.
+
+The auxiliary layer feeds ONLY the auxiliary output -- the main task's capacity
+is unchanged -- so any difference is the auxiliary GRADIENT shaping the shared
+representation, not extra parameters doing the main job.
+"""
+_ORIG_DOC = """Head v2: oriented + multi-scale per-event features, mixed-cell sampling quota.
 
 Head v1 (plain 3x3x8 count patch, uniform sampling) measured:
     mixed-cell recall  0.4005 (trunk) -> 0.5562 @1 epoch -> 0.5253 @40 epochs
@@ -61,6 +79,7 @@ PACK = "/fs/nexus-scratch/tuxunlu/real_t16e"
 CACHE = "/fs/nexus-scratch/tuxunlu/real_headv2"
 ITI = "/fs/nexus-scratch/tuxunlu/real_iti"     # 8 ITI-regularity cols
 RECUR = "/fs/nexus-scratch/tuxunlu/real_recur" # 12 recurrence cols
+FUT = "/fs/nexus-scratch/tuxunlu/real_fut"     # dense aux target
 SRC = "/fs/nexus-projects/DVS_Actions/dataset/real/EVK4_artifical"
 TMP = "/nfshomes/tuxunlu/.claude/jobs/ca4cd659/tmp"
 DEV = "cuda"
@@ -127,7 +146,8 @@ class CacheSet(Dataset):
                 self.files += sorted(glob.glob(f"{CACHE}/{sc}/rain_*/*.npz"))
         self.files = [f for f in sorted(self.files)
                       if os.path.exists(f.replace(CACHE, ITI))
-                      and os.path.exists(f.replace(CACHE, RECUR))]
+                      and os.path.exists(f.replace(CACHE, RECUR))
+                      and os.path.exists(f.replace(CACHE, FUT))]
         self.mm = [f.split("/")[-2] for f in self.files]
 
     def __len__(self):
@@ -164,7 +184,10 @@ class CacheSet(Dataset):
         tn_all = ((t - t0) / span).astype(np.float32)
         patch = multiscale_patch(xa, ya, tn_all, pa, sel)
         x, y = xa[sel], ya[sel]
-        return (torch.from_numpy(on4), torch.from_numpy(off4),
+        with _load_retry(cf.replace(CACHE, FUT)) as d4:
+            fut = d4["fut"].astype(np.float32)
+        return (torch.from_numpy(fut),
+                torch.from_numpy(on4), torch.from_numpy(off4),
                 torch.from_numpy(ex),
                 torch.from_numpy(x.astype(np.float32)),
                 torch.from_numpy(y.astype(np.float32)),
@@ -191,18 +214,35 @@ class HeadV2(nn.Module):
         return l + self.fc3(torch.cat([h, l], -1))
 
 
+class HeadAux(HeadV2):
+    """HeadV2 plus one auxiliary output off the SHARED penultimate layer."""
+
+    def __init__(self, feat_dim=32, hidden=64):
+        super().__init__(feat_dim, hidden)
+        self.aux = nn.Linear(32 + 1, 1)
+
+    def forward(self, l, feat, patch, tcols, tn):
+        z = torch.cat([l, feat, patch, tcols, tn], -1)
+        h = torch.relu(self.fc1(z))
+        h = torch.relu(self.fc2(torch.cat([h, l], -1)))
+        hl = torch.cat([h, l], -1)
+        return l + self.fc3(hl), self.aux(hl)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--epochs", type=int, default=30)
     ap.add_argument("--batch", type=int, default=2)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--init", default="reale_theirs_o1")
+    ap.add_argument("--lam", type=float, default=0.3,
+                    help="weight on the auxiliary loss")
     ap.add_argument("--split", default="theirs",
                     choices=["theirs", "ours", "all"])
     a = ap.parse_args()
     torch.manual_seed(a.seed)
     np.random.seed(a.seed)
-    tag = f"realfull_{a.split}" + (f"_s{a.seed}" if a.seed else "")
+    tag = f"realaux_{a.split}" + (f"_s{a.seed}" if a.seed else "")
 
     dl = dict(num_workers=3, pin_memory=True, persistent_workers=True)
     ds = {s: CacheSet(s, a.split) for s in ("train", "val", "test")}
@@ -217,7 +257,7 @@ def main():
                                      map_location="cpu")["state_dict"])
     # L3a: sample trunk features from EVERY block (dilations 1/8/32/64 give
     # genuinely different spatial context) instead of only the final map.
-    head = HeadV2(feat_dim=32 * (len(trunk.blocks) + 1)).to(DEV)
+    head = HeadAux(feat_dim=32 * (len(trunk.blocks) + 1)).to(DEV)
     feats = {}
     trunk.out_proj.register_forward_pre_hook(
         lambda m, inp: feats.__setitem__("f", inp[0]))
@@ -244,13 +284,16 @@ def main():
         xs, ys, tn = xs.to(DEV), ys.to(DEV), tn.to(DEV)
         lv = sample_at(lm[:, None], xs, ys, tn)
         fv = sample_at(fm[:, :, None].expand(-1, -1, To, -1, -1), xs, ys, tn)
-        return head(lv, fv, patch.to(DEV), tcols.to(DEV), tn[..., None])[..., 0]
+        m, x_ = head(lv, fv, patch.to(DEV), tcols.to(DEV), tn[..., None])
+        return m[..., 0], x_[..., 0]
 
     @torch.no_grad()
     def evaluate(loader, dset):
         acc = {}
-        for on, off, ex, xs, ys, tn, patch, tcols, lab, inv_p, nb, nr, idx in loader:
-            out = torch.sigmoid(fwd(on, off, ex, xs, ys, tn, patch, tcols))
+        for (_fut, on, off, ex, xs, ys, tn, patch, tcols, lab, inv_p,
+             nb, nr, idx) in loader:
+            out = torch.sigmoid(fwd(on, off, ex, xs, ys, tn, patch,
+                                    tcols)[0])
             lab, inv_p = lab.to(DEV), inv_p.to(DEV)
             for b in range(on.shape[0]):
                 mm = dset.mm[int(idx[b])]
@@ -274,13 +317,20 @@ def main():
         trunk.train()
         head.train()
         tot = nb_ = 0
-        for on, off, ex, xs, ys, tn, patch, tcols, lab, inv_p, nb, nr, _ in tr:
-            out = fwd(on, off, ex, xs, ys, tn, patch, tcols)
+        for (fut, on, off, ex, xs, ys, tn, patch, tcols, lab, inv_p,
+             nb, nr, _) in tr:
+            out, aux = fwd(on, off, ex, xs, ys, tn, patch, tcols)
             lab, inv_p = lab.to(DEV), inv_p.to(DEV)
             nb, nr = nb.to(DEV)[:, None], nr.to(DEV)[:, None]
             w = inv_p * (lab / nb.clamp(min=1) + (1 - lab) / nr.clamp(min=1))
             bce = F.binary_cross_entropy_with_logits(out, lab, reduction="none")
             loss = (bce * w).sum() / w.sum().clamp(min=EPS)
+            # AUXILIARY: predict next-window persistence. Unweighted and dense,
+            # so every event contributes. lam=0 reduces this file exactly to
+            # run_real_full.py, which is the control.
+            if a.lam > 0:
+                loss = loss + a.lam * F.binary_cross_entropy_with_logits(
+                    aux, fut.to(DEV))
             opt.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(
