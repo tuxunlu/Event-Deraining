@@ -36,6 +36,7 @@ import config as C
 C.bootstrap()
 import argparse
 import glob
+import os
 import json
 import time
 
@@ -55,10 +56,11 @@ TAUS = np.linspace(0.05, 0.95, 19)
 
 
 class KittiESet(Dataset):
-    def __init__(self, split, t_front, t_out, target):
+    def __init__(self, split, t_front, t_out, target, ctx=0):
         self.files = sorted(glob.glob(f"{ROOT}/{split}/*/*.npz"))
         self.mm = [f.split("/")[-2] for f in self.files]
         self.tf, self.to, self.target = t_front, t_out, target
+        self.ctx = ctx
         assert T_BUILD % t_front == 0 and T_BUILD % t_out == 0
 
     def __len__(self):
@@ -72,12 +74,25 @@ class KittiESet(Dataset):
             rn = d["rn"].reshape(T_BUILD, R, R).astype(np.float32)
         onf = on.reshape(self.tf, T_BUILD // self.tf, R, R).max(1)
         offf = off.reshape(self.tf, T_BUILD // self.tf, R, R).max(1)
+        ex = []
+        for k in range(1, self.ctx + 1):
+            d0, b0 = os.path.split(self.files[i])
+            j = max(int(b0.split(".")[0]) - k, 0)
+            pv = f"{d0}/{j:010d}.npz"
+            pv = pv if os.path.exists(pv) else self.files[i]
+            with np.load(pv) as dp:
+                pon = np.unpackbits(dp["on"])[: T_BUILD * R * R].reshape(T_BUILD, R, R)
+                poff = np.unpackbits(dp["off"])[: T_BUILD * R * R].reshape(T_BUILD, R, R)
+            ex.append(pon.max(0)[None].astype(np.float32))
+            ex.append(poff.max(0)[None].astype(np.float32))
+        exa = (np.concatenate(ex, 0) if ex else np.zeros((0, R, R), np.float32))
         k = T_BUILD // self.to
         bgo = bg.reshape(self.to, k, R, R).sum(1)
         rno = rn.reshape(self.to, k, R, R).sum(1)
         lit = (bgo + rno) > 0
         tgt = (bgo > rno) if self.target == "maj" else (bgo > 0)
         return (torch.from_numpy(onf).float(), torch.from_numpy(offf).float(),
+                torch.from_numpy(exa).float(),
                 torch.from_numpy(tgt & lit).float(), torch.from_numpy(lit).float(),
                 torch.from_numpy(bgo), torch.from_numpy(rno), i)
 
@@ -91,8 +106,9 @@ def lit_bce(logits, tgt, lit):
 def evaluate(model, loader, ds):
     """Exact event-level DA at every tau, per intensity."""
     acc = {}
-    for on, off, tgt, lit, bg, rn, idx in loader:
-        p = torch.sigmoid(model(on.to(DEV), x_off=off.to(DEV)))
+    for on, off, ex, tgt, lit, bg, rn, idx in loader:
+        kw = {"x_extra": ex.to(DEV)} if ex.shape[1] else {}
+        p = torch.sigmoid(model(on.to(DEV), x_off=off.to(DEV), **kw))
         bg, rn = bg.to(DEV), rn.to(DEV)
         for b in range(on.shape[0]):
             nb, nr = float(bg[b].sum()), float(rn[b].sum())
@@ -114,6 +130,10 @@ def main():
                     choices=["dffn", "orsp", "streaknet", "fmamba"])
     ap.add_argument("--tout", type=int, default=16)
     ap.add_argument("--tfront", type=int, default=4)
+    ap.add_argument("--ctx", type=int, default=0,
+                    help="inter-window context planes, as in "
+                         "run_kitti_ctx.py. Context is an INPUT "
+                         "change, so every body gets it or none do.")
     ap.add_argument("--target", default="maj", choices=["maj", "or"])
     ap.add_argument("--epochs", type=int, default=50)
     ap.add_argument("--batch", type=int, default=4)
@@ -130,17 +150,18 @@ def main():
 
     torch.manual_seed(a.seed)
     np.random.seed(a.seed)
-    tag = f"fair_{a.body}_o{a.tout}" + (f"_s{a.seed}" if a.seed else "")
+    tag = f"fair_{a.body}_o{a.tout}" + (f"_c{a.ctx}" if a.ctx else "") + (f"_s{a.seed}" if a.seed else "")
 
     dl = dict(num_workers=4, pin_memory=True, persistent_workers=True)
-    tr_ds = KittiESet("train", a.tfront, a.tout, a.target)
-    va_ds = KittiESet("val", a.tfront, a.tout, a.target)
-    te_ds = KittiESet("test", a.tfront, a.tout, a.target)
+    tr_ds = KittiESet("train", a.tfront, a.tout, a.target, a.ctx)
+    va_ds = KittiESet("val", a.tfront, a.tout, a.target, a.ctx)
+    te_ds = KittiESet("test", a.tfront, a.tout, a.target, a.ctx)
     tr = DataLoader(tr_ds, batch_size=a.batch, shuffle=True, drop_last=True, **dl)
     va = DataLoader(va_ds, batch_size=a.batch, **dl)
     te = DataLoader(te_ds, batch_size=a.batch, **dl)
 
-    m = FrontendBody(a.body, T=a.tfront, t_out=a.tout).to(DEV)
+    m = FrontendBody(a.body, T=a.tfront, t_out=a.tout,
+                     n_extra=2 * a.ctx).to(DEV)
     npar = sum(q.numel() for q in m.parameters())
     print(f"{tag}: {npar:,} params | train {len(tr_ds)} val {len(va_ds)} "
           f"test {len(te_ds)}", flush=True)
@@ -156,10 +177,12 @@ def main():
         m.train()
         tot = nb = 0
         nskip = 0
-        for on, off, tgt, lit, bg, rn, _ in tr:
+        for on, off, ex, tgt, lit, bg, rn, _ in tr:
+            kw = ({"x_extra": ex.to(DEV, non_blocking=True)}
+                  if ex.shape[1] else {})
             with torch.cuda.amp.autocast(enabled=a.amp or a.bf16, dtype=_adt):
                 out = m(on.to(DEV, non_blocking=True),
-                        x_off=off.to(DEV, non_blocking=True))
+                        x_off=off.to(DEV, non_blocking=True), **kw)
                 loss = lit_bce(out.float(), tgt.to(DEV, non_blocking=True),
                                lit.to(DEV, non_blocking=True))
             opt.zero_grad(set_to_none=True)

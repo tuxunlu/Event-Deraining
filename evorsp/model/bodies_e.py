@@ -33,11 +33,16 @@ from rsp_3d import TemporalFrontend
 
 
 class FrontendBody(nn.Module):
-    def __init__(self, kind, T=4, n_t=3, t_out=16, dim=32):
+    def __init__(self, kind, T=4, n_t=3, t_out=16, dim=32, n_extra=0):
         super().__init__()
         self.kind = kind
+        self.n_extra = n_extra
         self.front = TemporalFrontend(n_t, T)
-        cin = self.front.out_chans * 2                    # ON planes + OFF planes
+        # ON planes + OFF planes, plus any inter-window CONTEXT planes.
+        # Context is an INPUT change, not an architectural one, so every
+        # body must be offered it before our context-equipped numbers can
+        # be compared with theirs.
+        cin = self.front.out_chans * 2 + n_extra
         if kind == "dffn":
             from model.DynamicFourierFilterNet import DynamicFourierFilterNet
             self.body = DynamicFourierFilterNet(in_chans=cin, out_chans=t_out,
@@ -59,9 +64,11 @@ class FrontendBody(nn.Module):
         else:
             raise ValueError(kind)
 
-    def forward(self, x, x_off=None):
+    def forward(self, x, x_off=None, x_extra=None):
         p = torch.cat([self.front(x), self.front(x_off)], 1)
         anchor = p[:, :1]
+        if self.n_extra:
+            p = torch.cat([p, x_extra], 1)
         if self.kind == "fmamba":
             return self.head(self.body(p)) + anchor
         b = self.body

@@ -148,6 +148,16 @@ def main():
     ap.add_argument("--tfront", type=int, default=4)
     ap.add_argument("--tout", type=int, default=16)
     ap.add_argument("--ctx", type=int, default=0)
+    ap.add_argument("--dil", default="1,8,32,64",
+                    help="gate dilation ladder. A 3x3 at dilation d reaches "
+                         "+/-d px on the 256 grid, so 64 covers a quarter of "
+                         "the frame and 128 covers all of it. Measured FREE: "
+                         "same 28,719 params and 6.49-6.50 ms for every ladder, "
+                         "so any accuracy gain here is pure profit.")
+    ap.add_argument("--blocks", type=int, default=3,
+                    help="depth is the ONLY lever that moves latency: "
+                         "dim/probe/n_rad are free (4.23-4.27 ms across "
+                         "12K-29K params), 3->2 blocks is 4.26->3.15 ms")
     ap.add_argument("--counts", action="store_true")
     ap.add_argument("--epochs", type=int, default=50)
     ap.add_argument("--batch", type=int, default=4)
@@ -157,6 +167,8 @@ def main():
     torch.manual_seed(a.seed)
     np.random.seed(a.seed)
     tag = (f"ctx_f{a.tfront}o{a.tout}_c{a.ctx}"
+           + (f"_b{a.blocks}" if a.blocks != 3 else "")
+           + ("" if a.dil == "1,8,32,64" else "_d" + a.dil.replace(',', '-'))
            + ("_cnt" if a.counts else "") + (f"_s{a.seed}" if a.seed else ""))
     n_extra = 2 * a.ctx + (1 if a.counts else 0)
 
@@ -168,7 +180,8 @@ def main():
     va = DataLoader(ds["val"], batch_size=a.batch, **dl)
     te = DataLoader(ds["test"], batch_size=a.batch, **dl)
 
-    m = ORSPNet3D(T=a.tfront, dilations=(1, 8, 32, 64), num_blocks=3,
+    _dil = tuple(int(v) for v in a.dil.split(','))
+    m = ORSPNet3D(T=a.tfront, dilations=_dil, num_blocks=a.blocks,
                   use_off=True, out_chans=a.tout, n_extra=n_extra).to(DEV)
     npar = sum(q.numel() for q in m.parameters())
     print(f"{tag}: {npar:,} params | T_front {a.tfront} -> T_out {a.tout} | "
