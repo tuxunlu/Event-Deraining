@@ -46,6 +46,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
 from rsp_3d import ORSPNet3D
+from rsp_guard3d import ORSPNet3DGuard
 
 ROOT = f"{C.KITTI_PACK}"
 TMP = f"{C.CKPT}"
@@ -148,6 +149,13 @@ def main():
     ap.add_argument("--tfront", type=int, default=4)
     ap.add_argument("--tout", type=int, default=16)
     ap.add_argument("--ctx", type=int, default=0)
+    ap.add_argument("--guard", default="",
+                    help="alpha,bound for the retention-guaranteed trunk "
+                         "(rsp_guard3d). logit = alpha*res + C*tanh(z/C), so a "
+                         "fully persistent cell scores at least alpha-C no "
+                         "matter what the weights are. Verified under attack at "
+                         "exactly the floor while every alternative collapsed "
+                         "to chance. This measures what the guarantee COSTS.")
     ap.add_argument("--dil", default="1,8,32,64",
                     help="gate dilation ladder. A 3x3 at dilation d reaches "
                          "+/-d px on the 256 grid, so 64 covers a quarter of "
@@ -169,6 +177,7 @@ def main():
     tag = (f"ctx_f{a.tfront}o{a.tout}_c{a.ctx}"
            + (f"_b{a.blocks}" if a.blocks != 3 else "")
            + ("" if a.dil == "1,8,32,64" else "_d" + a.dil.replace(',', '-'))
+           + ("" if not a.guard else "_g" + a.guard.replace(",", "-"))
            + ("_cnt" if a.counts else "") + (f"_s{a.seed}" if a.seed else ""))
     n_extra = 2 * a.ctx + (1 if a.counts else 0)
 
@@ -181,8 +190,13 @@ def main():
     te = DataLoader(ds["test"], batch_size=a.batch, **dl)
 
     _dil = tuple(int(v) for v in a.dil.split(','))
-    m = ORSPNet3D(T=a.tfront, dilations=_dil, num_blocks=a.blocks,
-                  use_off=True, out_chans=a.tout, n_extra=n_extra).to(DEV)
+    _cls = ORSPNet3D
+    _gkw = {}
+    if a.guard:
+        _al, _bd = (float(v) for v in a.guard.split(","))
+        _cls, _gkw = ORSPNet3DGuard, dict(alpha=_al, bound=_bd)
+    m = _cls(T=a.tfront, dilations=_dil, num_blocks=a.blocks,
+                  use_off=True, out_chans=a.tout, n_extra=n_extra, **_gkw).to(DEV)
     npar = sum(q.numel() for q in m.parameters())
     print(f"{tag}: {npar:,} params | T_front {a.tfront} -> T_out {a.tout} | "
           f"ctx {a.ctx} windows | counts {a.counts} | n_extra {n_extra}",

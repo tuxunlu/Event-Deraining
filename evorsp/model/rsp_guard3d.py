@@ -3,8 +3,20 @@
 The adversarial test (adversarial_dc.py) refuted the claim I had been making.
 The frontend's protected residual band is genuinely immovable -- attacked
 directly it shifted 1.0x -- but the network as a whole still suppressed static
-input 401x, and removing the protected frontend entirely changed that to 391x.
-The protection was real and completely undone downstream.
+input by hundreds of times, and removing the protected frontend entirely did not
+reduce that. The protection was real and completely undone downstream.
+
+Confirmed run, see checkpoints/adversarial_dc_result.txt:
+
+    band decomposition alone            1.0x     immovable, as claimed
+    full shipped network              529.7x     protection undone
+    same network, no protected band   363.3x     the band was not what helped
+    plain CNN, no structure at all   1332.2x     reference point
+    GUARDED (this module)               3.9x     min logit 2.000 == alpha - C
+
+The full-network figure wanders ~400-700x across seeds -- it depends on how far
+one short adversarial run happens to get. The ordering does not move, and the
+guarded row is exact rather than stochastic: the floor is algebra, not a fit.
 
 WHY A BYPASS ALONE DOES NOT FIX IT. Routing the residual to the output as
 `z + res` gives no guarantee: z is unbounded, so the learnable branch can emit a

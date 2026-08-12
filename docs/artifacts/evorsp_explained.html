@@ -1,0 +1,261 @@
+<title>EvORSP-3T, explained</title>
+<style>
+:root{
+  --paper:#eceff4;--surface:#f8fafc;--ink:#131820;--muted:#5f6b7a;--line:#ccd5e0;
+  --on:#c62d42;--off:#2f6fad;--glow:rgba(198,45,66,.10);
+  --serif:ui-serif,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0d1117;--surface:#151d27;--ink:#dde5ee;--muted:#8b97a6;--line:#26303c;
+  --on:#ff6076;--off:#63a6e0;--glow:rgba(255,96,118,.13);}}
+:root[data-theme="dark"]{
+  --paper:#0d1117;--surface:#151d27;--ink:#dde5ee;--muted:#8b97a6;--line:#26303c;
+  --on:#ff6076;--off:#63a6e0;--glow:rgba(255,96,118,.13);}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:17px;line-height:1.68;-webkit-font-smoothing:antialiased}
+.wrap{max-width:74ch;margin:0 auto;padding:4.5rem 1.5rem 6rem}
+h1{font-family:var(--serif);font-weight:600;font-size:clamp(2.1rem,5vw,3rem);
+  line-height:1.1;letter-spacing:-.018em;margin:.2rem 0 .6rem;text-wrap:balance}
+h2{font-family:var(--serif);font-weight:600;font-size:1.66rem;line-height:1.22;
+  margin:3.6rem 0 .8rem;text-wrap:balance}
+.step{font-family:var(--mono);font-size:.7rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--on);margin:3.6rem 0 -.3rem}
+.eyebrow{font-family:var(--mono);font-size:.71rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 .7rem}
+.lede{font-size:1.14rem;color:var(--muted);max-width:60ch;margin:.7rem 0 0}
+p{margin:0 0 1.05rem;max-width:66ch}
+code{font-family:var(--mono);font-size:.87em;background:var(--surface);
+  border:1px solid var(--line);border-radius:3px;padding:.08em .34em}
+figure{margin:2.3rem 0}
+.bleed{width:min(100vw - 2rem,1060px);margin-left:50%;transform:translateX(-50%)}
+.scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--line);
+  border-radius:7px;padding:1.2rem}
+svg{display:block;max-width:100%;height:auto;color:var(--ink)}
+figcaption{font-size:.9rem;color:var(--muted);margin-top:.8rem;max-width:66ch}
+figcaption b{color:var(--ink);font-weight:600}
+.plain{border-left:2px solid var(--on);background:var(--glow);padding:.9rem 1.1rem;
+  margin:1.5rem 0;border-radius:0 5px 5px 0}
+.plain p{margin:0;max-width:none}
+.plain .l{font-family:var(--mono);font-size:.68rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--on);display:block;margin-bottom:.3rem}
+table{border-collapse:collapse;width:100%;margin:1.2rem 0;font-size:.94rem}
+th,td{text-align:left;padding:.45rem .7rem;border-bottom:1px solid var(--line);
+  vertical-align:top}
+th{font-family:var(--mono);font-size:.69rem;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted);font-weight:500}
+td.n{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.on{color:var(--on)}.off{color:var(--off)}
+a{color:var(--on);text-decoration:underline;text-decoration-thickness:1px;
+  text-underline-offset:2px}
+a:hover{text-decoration-thickness:2px}
+a:focus-visible{outline:2px solid var(--on);outline-offset:2px;border-radius:2px}
+</style>
+<div class="wrap">
+<p class="eyebrow">Event-camera deraining</p>
+<h1>How EvORSP-3T removes rain</h1>
+<p class="lede">The whole network is one idea applied twice: sort the signal into
+bins, turn down the bins where rain lives, add everything back up. What follows
+builds that up one piece at a time.</p>
+
+<p class="step">The problem</p>
+<h2>You cannot tell rain from scene by looking at one moment</h2>
+<p>An event camera reports one thing: <em>this pixel just got brighter or darker,
+at this instant</em>. A raindrop crossing a pixel and a building edge crossing the
+same pixel produce the same report. Nothing about a single event says which it was.</p>
+
+<figure class="bleed"><div class="scroll"><svg viewBox="0 0 880 300" role="img" aria-label="Two events that look identical in one window but behave differently across windows"><defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker><marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--on)"/></marker></defs><text x="180" y="36" text-anchor="middle" font-size="14" font-family="var(--sans)" fill="var(--off)">a rain event</text><rect x="130" y="56" width="24" height="24" fill="var(--surface)" stroke="currentColor" stroke-width=".6"/><rect x="156" y="56" width="24" height="24" fill="var(--line)" stroke="currentColor" stroke-width=".6"/><rect x="182" y="56" width="24" height="24" fill="var(--surface)" stroke="currentColor" stroke-width=".6"/><rect x="130" y="82" width="24" height="24" fill="var(--line)" stroke="currentColor" stroke-width=".6"/><rect x="156" y="82" width="24" height="24" fill="var(--surface)" stroke="currentColor" stroke-width=".6"/><rect x="182" y="82" width="24" height="24" fill="var(--line)" stroke="currentColor" stroke-width=".6"/><rect x="130" y="108" width="24" height="24" fill="var(--surface)" stroke="currentColor" stroke-width=".6"/><rect x="156" y="108" width="24" height="24" fill="var(--line)" stroke="currentColor" stroke-width=".6"/><rect x="182" y="108" width="24" height="24" fill="var(--surface)" stroke="currentColor" stroke-width=".6"/><circle cx="169" cy="95" r="7" fill="var(--off)"/><text x="169" y="152" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">what one window shows</text><text x="169" y="167" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">&#8212; identical &#8212;</text><line x1="90" y1="212" x2="270" y2="212" stroke="currentColor" stroke-width="1" marker-end="url(#ar)"/><text x="180" y="232" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">time &#8594;</text><circle cx="104" cy="196" r="6.5" fill="var(--off)"/><circle cx="146" cy="196" r="6.5" fill="none" stroke="var(--line)" stroke-width="1.4"/><circle cx="188" cy="196" r="6.5" fill="none" stroke="var(--line)" stroke-width="1.4"/><circle cx="230" cy="196" r="6.5" fill="none" stroke="var(--line)" stroke-width="1.4"/><text x="180" y="268" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">fires once, never returns</text><text x="610" y="36" text-anchor="middle" font-size="14" font-family="var(--sans)" fill="var(--on)">a scene event</text><rect x="560" y="56" width="24" height="24" fill="var(--surface)" stroke="currentColor" stroke-width=".6"/><rect x="586" y="56" width="24" height="24" fill="var(--line)" stroke="currentColor" stroke-width=".6"/><rect x="612" y="56" width="24" height="24" fill="var(--surface)" stroke="currentColor" stroke-width=".6"/><rect x="560" y="82" width="24" height="24" fill="var(--line)" stroke="currentColor" stroke-width=".6"/><rect x="586" y="82" width="24" height="24" fill="var(--surface)" stroke="currentColor" stroke-width=".6"/><rect x="612" y="82" width="24" height="24" fill="var(--line)" stroke="currentColor" stroke-width=".6"/><rect x="560" y="108" width="24" height="24" fill="var(--surface)" stroke="currentColor" stroke-width=".6"/><rect x="586" y="108" width="24" height="24" fill="var(--line)" stroke="currentColor" stroke-width=".6"/><rect x="612" y="108" width="24" height="24" fill="var(--surface)" stroke="currentColor" stroke-width=".6"/><circle cx="599" cy="95" r="7" fill="var(--on)"/><text x="599" y="152" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">what one window shows</text><text x="599" y="167" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">&#8212; identical &#8212;</text><line x1="520" y1="212" x2="700" y2="212" stroke="currentColor" stroke-width="1" marker-end="url(#ar)"/><text x="610" y="232" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">time &#8594;</text><circle cx="534" cy="196" r="6.5" fill="var(--on)"/><circle cx="576" cy="196" r="6.5" fill="var(--on)"/><circle cx="618" cy="196" r="6.5" fill="var(--on)"/><circle cx="660" cy="196" r="6.5" fill="var(--on)"/><text x="610" y="268" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">returns to the same pixel</text><line x1="440" y1="40" x2="440" y2="276" stroke="var(--line)" stroke-width="1" stroke-dasharray="4 4"/></svg></div>
+<figcaption><b>The same event, two different causes.</b> In one window the
+neighbourhoods are indistinguishable. Across windows they separate completely: the
+scene edge keeps re-firing at the same pixel, the drop fires once and is gone. On
+our data that difference is large &#8212; scene events return <b>58%</b> of the
+time, rain events <b>8%</b>.</figcaption></figure>
+
+<div class="plain"><p><span class="l">What this means</span>
+The information that separates rain from scene is not in <em>appearance</em>. It is
+in <em>how the signal behaves over space and time</em>. So the network's first job
+is to convert behaviour into something it can measure.</p></div>
+
+<p class="step">The core idea</p>
+<h2>Treat it like a graphic equaliser</h2>
+<p>An audio equaliser splits sound into frequency bands &#8212; bass, mid, treble
+&#8212; and lets you turn each one down independently. The bands add back to the
+original, so if you move nothing, nothing changes.</p>
+<p>EvORSP does exactly this to an event stream. It splits the signal into bins by
+<b>how fast a pixel is changing</b> and <b>which direction the structure points</b>,
+turns down the bins that look like rain, and adds the rest back up.</p>
+
+<figure class="bleed"><div class="scroll"><svg viewBox="0 0 940 380" role="img" aria-label="The network works like a graphic equaliser: split the signal into bands, turn some down, add them back up"><defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker><marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--on)"/></marker></defs><text x="90" y="40" text-anchor="middle" font-size="13" font-family="var(--sans)" fill="var(--muted)">IN</text><line x1="60" y1="180" x2="140" y2="180" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/><text x="100" y="172" text-anchor="middle" font-size="11.5" font-family="var(--sans)" fill="var(--muted)">all events</text><path d="M142,180 L176,180" stroke="currentColor" stroke-width="1.4"/><path d="M176,180 L200,76" stroke="currentColor" stroke-width="1"/><rect x="202" y="62" width="118" height="30" rx="3" fill="var(--surface)" stroke="var(--off)" stroke-width="1.3"/><text x="261" y="82" text-anchor="middle" font-size="11.5" font-family="var(--sans)" fill="var(--off)">fast, steep</text><line x1="348" y1="77" x2="560" y2="77" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="348" y1="77" x2="386" y2="77" stroke="var(--off)" stroke-width="3" stroke-linecap="round"/><rect x="381" y="68" width="10" height="18" rx="2.5" fill="var(--off)"/><text x="652" y="81" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--muted)">learned, per pixel</text><path d="M730,77 L764,180" stroke="currentColor" stroke-width="1"/><path d="M176,180 L200,134" stroke="currentColor" stroke-width="1"/><rect x="202" y="120" width="118" height="30" rx="3" fill="var(--surface)" stroke="var(--off)" stroke-width="1.3"/><text x="261" y="140" text-anchor="middle" font-size="11.5" font-family="var(--sans)" fill="var(--off)">fast, flat</text><line x1="348" y1="135" x2="560" y2="135" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="348" y1="135" x2="420" y2="135" stroke="var(--off)" stroke-width="3" stroke-linecap="round"/><rect x="415" y="126" width="10" height="18" rx="2.5" fill="var(--off)"/><text x="652" y="139" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--muted)">learned, per pixel</text><path d="M730,135 L764,180" stroke="currentColor" stroke-width="1"/><path d="M176,180 L200,192" stroke="currentColor" stroke-width="1"/><rect x="202" y="178" width="118" height="30" rx="3" fill="var(--surface)" stroke="var(--off)" stroke-width="1.3"/><text x="261" y="198" text-anchor="middle" font-size="11.5" font-family="var(--sans)" fill="var(--off)">medium</text><line x1="348" y1="193" x2="560" y2="193" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="348" y1="193" x2="479" y2="193" stroke="var(--off)" stroke-width="3" stroke-linecap="round"/><rect x="474" y="184" width="10" height="18" rx="2.5" fill="var(--off)"/><text x="652" y="197" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--muted)">learned, per pixel</text><path d="M730,193 L764,180" stroke="currentColor" stroke-width="1"/><path d="M176,180 L200,250" stroke="currentColor" stroke-width="1"/><rect x="202" y="236" width="118" height="30" rx="3" fill="var(--surface)" stroke="var(--off)" stroke-width="1.3"/><text x="261" y="256" text-anchor="middle" font-size="11.5" font-family="var(--sans)" fill="var(--off)">slow</text><line x1="348" y1="251" x2="560" y2="251" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="348" y1="251" x2="518" y2="251" stroke="var(--off)" stroke-width="3" stroke-linecap="round"/><rect x="513" y="242" width="10" height="18" rx="2.5" fill="var(--off)"/><text x="652" y="255" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--muted)">learned, per pixel</text><path d="M730,251 L764,180" stroke="currentColor" stroke-width="1"/><path d="M176,180 L200,308" stroke="currentColor" stroke-width="1"/><rect x="202" y="294" width="118" height="30" rx="3" fill="var(--surface)" stroke="var(--on)" stroke-width="1.3"/><text x="261" y="314" text-anchor="middle" font-size="11.5" font-family="var(--sans)" fill="var(--on)">PERSISTENT</text><line x1="348" y1="309" x2="560" y2="309" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="348" y1="309" x2="560" y2="309" stroke="var(--on)" stroke-width="3" stroke-linecap="round"/><rect x="555" y="300" width="10" height="18" rx="2.5" fill="var(--on)"/><rect x="547" y="293" width="26" height="32" rx="4" fill="none" stroke="var(--on)" stroke-width="1.4" stroke-dasharray="3 2"/><text x="652" y="313" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--on)">slider removed</text><path d="M730,309 L764,180" stroke="currentColor" stroke-width="1"/><line x1="764" y1="180" x2="836" y2="180" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/><text x="880" y="40" text-anchor="middle" font-size="13" font-family="var(--sans)" fill="var(--muted)">OUT</text><text x="806" y="172" text-anchor="middle" font-size="11.5" font-family="var(--sans)" fill="var(--muted)">kept events</text><text x="470" y="348" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">the bands add back to exactly the input, so turning nothing down returns the input untouched</text></svg></div>
+<figcaption><b>The equaliser.</b> Every slider is learned, and set separately at
+every pixel. The bottom slider is different: it handles the part of the signal that
+<em>never changes</em>, and it has <b>no slider at all</b> &#8212; that band leaves
+this stage ungated. What happens to it <em>afterwards</em> is a separate question,
+and one we got wrong for months &#8212;
+<a href="#guarantee">see the last section</a>.</figcaption></figure>
+
+<div class="plain"><p><span class="l">What the locked band does and does not buy</span>
+Anything that stays put across time is, by definition, part of the scene, and rain
+never stays put &#8212; so leaving that band ungated is the right instinct. We then
+claimed the strong version of it: that the network therefore <em>cannot</em> delete
+the static world, however it is trained. <b>We tested that claim directly and it is
+false.</b> The band really does leave the equaliser untouched, but every one of the
+network's other twenty-eight thousand weights sits downstream of it and is free to
+undo the protection. Measured, they undo it almost completely. The full account, and a version of the network where the
+guarantee does hold, are in <a href="#guarantee">the last section</a>.</p></div>
+
+<p class="step">Split one &#8212; by speed</p>
+<h2>Sorting by how fast a pixel flickers</h2>
+<p>Take each pixel's history over the window and ask how quickly it is changing. A
+wall changes not at all. A tree in wind changes slowly. A raindrop produces one
+sharp flicker and vanishes. Those land in different bins.</p>
+
+<figure class="bleed"><div class="scroll"><svg viewBox="0 0 880 300" role="img" aria-label="The three temporal bands and the protected persistent band"><defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker><marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--on)"/></marker></defs><rect x="96" y="46" width="26.840000000000003" height="150" fill="var(--glow)"/><line x1="96" y1="196" x2="706" y2="196" stroke="currentColor" stroke-width="1.1"/><line x1="96" y1="196" x2="96" y2="46" stroke="currentColor" stroke-width="1.1"/><polyline points="96.1,56.0 103.8,56.0 111.6,56.5 119.3,60.6 127.0,70.4 134.7,83.9 142.4,97.1 150.2,108.2 157.9,116.7 165.6,123.1 173.3,127.8 181.0,131.3 188.8,133.8 196.5,135.7 204.2,137.2 211.9,138.2 219.6,139.1 227.4,139.7 235.1,140.2 242.8,140.6 250.5,140.9 258.2,141.1 266.0,141.3 273.7,141.4 281.4,141.5 289.1,141.6 296.8,141.7 304.6,141.7 312.3,141.8 320.0,141.8 327.7,141.8 335.4,141.8 343.2,141.8 350.9,141.8 358.6,141.7 366.3,141.7 374.0,141.6 381.8,141.6 389.5,141.5 397.2,141.4 404.9,141.4 412.6,141.3 420.4,141.2 428.1,141.1 435.8,141.0 443.5,140.8 451.2,140.7 459.0,140.6 466.7,140.5 474.4,140.3 482.1,140.2 489.8,140.0 497.6,139.8 505.3,139.7 513.0,139.5 520.7,139.3 528.4,139.1 536.2,138.9 543.9,138.7 551.6,138.4 559.3,138.2 567.0,138.0 574.8,137.7 582.5,137.5 590.2,137.2 597.9,136.9 605.6,136.7 613.4,136.4 621.1,136.1 628.8,135.8 636.5,135.4 644.2,135.1 652.0,134.8 659.7,134.5 667.4,134.1 675.1,133.8 682.8,133.4 690.6,133.0 698.3,132.7 706.0,132.3" fill="none" stroke="var(--on)" stroke-width="2.3"/><polyline points="96.1,196.0 103.8,196.0 111.6,195.5 119.3,191.5 127.0,181.7 134.7,168.7 142.4,156.3 150.2,146.5 157.9,139.8 165.6,135.7 173.3,133.7 181.0,133.3 188.8,134.1 196.5,135.8 204.2,138.2 211.9,141.0 219.6,144.1 227.4,147.3 235.1,150.6 242.8,153.9 250.5,157.1 258.2,160.2 266.0,163.1 273.7,165.8 281.4,168.4 289.1,170.8 296.8,173.0 304.6,175.1 312.3,177.0 320.0,178.7 327.7,180.2 335.4,181.7 343.2,183.0 350.9,184.2 358.6,185.2 366.3,186.2 374.0,187.1 381.8,187.9 389.5,188.6 397.2,189.3 404.9,189.9 412.6,190.5 420.4,190.9 428.1,191.4 435.8,191.8 443.5,192.2 451.2,192.5 459.0,192.8 466.7,193.1 474.4,193.3 482.1,193.5 489.8,193.8 497.6,193.9 505.3,194.1 513.0,194.3 520.7,194.4 528.4,194.5 536.2,194.7 543.9,194.8 551.6,194.9 559.3,195.0 567.0,195.0 574.8,195.1 582.5,195.2 590.2,195.2 597.9,195.3 605.6,195.4 613.4,195.4 621.1,195.4 628.8,195.5 636.5,195.5 644.2,195.6 652.0,195.6 659.7,195.6 667.4,195.6 675.1,195.7 682.8,195.7 690.6,195.7 698.3,195.7 706.0,195.8" fill="none" stroke="var(--off)" stroke-width="1.6" opacity="0.95"/><polyline points="96.1,196.0 103.8,196.0 111.6,196.0 119.3,196.0 127.0,195.8 134.7,195.4 142.4,194.6 150.2,193.3 157.9,191.5 165.6,189.3 173.3,186.7 181.0,183.7 188.8,180.4 196.5,176.9 204.2,173.4 211.9,169.8 219.6,166.3 227.4,162.9 235.1,159.7 242.8,156.7 250.5,153.9 258.2,151.4 266.0,149.3 273.7,147.4 281.4,145.8 289.1,144.5 296.8,143.5 304.6,142.7 312.3,142.2 320.0,141.9 327.7,141.8 335.4,141.9 343.2,142.2 350.9,142.6 358.6,143.1 366.3,143.8 374.0,144.6 381.8,145.4 389.5,146.3 397.2,147.3 404.9,148.4 412.6,149.5 420.4,150.6 428.1,151.7 435.8,152.9 443.5,154.0 451.2,155.2 459.0,156.3 466.7,157.5 474.4,158.6 482.1,159.8 489.8,160.9 497.6,162.0 505.3,163.1 513.0,164.1 520.7,165.2 528.4,166.2 536.2,167.1 543.9,168.1 551.6,169.0 559.3,169.9 567.0,170.8 574.8,171.7 582.5,172.5 590.2,173.3 597.9,174.1 605.6,174.8 613.4,175.5 621.1,176.2 628.8,176.9 636.5,177.6 644.2,178.2 652.0,178.8 659.7,179.4 667.4,180.0 675.1,180.5 682.8,181.0 690.6,181.5 698.3,182.0 706.0,182.5" fill="none" stroke="var(--off)" stroke-width="1.6" opacity="0.77"/><polyline points="96.1,196.0 103.8,196.0 111.6,196.0 119.3,196.0 127.0,196.0 134.7,196.0 142.4,196.0 150.2,196.0 157.9,196.0 165.6,195.9 173.3,195.9 181.0,195.8 188.8,195.7 196.5,195.5 204.2,195.2 211.9,194.9 219.6,194.6 227.4,194.1 235.1,193.5 242.8,192.9 250.5,192.1 258.2,191.3 266.0,190.4 273.7,189.3 281.4,188.2 289.1,187.1 296.8,185.8 304.6,184.5 312.3,183.1 320.0,181.6 327.7,180.2 335.4,178.6 343.2,177.1 350.9,175.5 358.6,173.9 366.3,172.3 374.0,170.7 381.8,169.1 389.5,167.5 397.2,165.9 404.9,164.4 412.6,162.8 420.4,161.3 428.1,159.8 435.8,158.4 443.5,157.0 451.2,155.6 459.0,154.3 466.7,153.0 474.4,151.7 482.1,150.5 489.8,149.3 497.6,148.2 505.3,147.2 513.0,146.1 520.7,145.1 528.4,144.2 536.2,143.3 543.9,142.5 551.6,141.7 559.3,140.9 567.0,140.2 574.8,139.5 582.5,138.9 590.2,138.3 597.9,137.7 605.6,137.2 613.4,136.7 621.1,136.3 628.8,135.9 636.5,135.5 644.2,135.1 652.0,134.8 659.7,134.5 667.4,134.3 675.1,134.1 682.8,133.9 690.6,133.7 698.3,133.6 706.0,133.5" fill="none" stroke="var(--off)" stroke-width="1.6" opacity="0.59"/><text x="102" y="226" text-anchor="start" font-size="12" font-family="var(--sans)" fill="var(--on)">never changes</text><text x="102" y="243" text-anchor="start" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">a wall, a parked car</text><text x="706" y="226" text-anchor="end" font-size="12" font-family="var(--sans)" fill="var(--off)">flickers fast</text><text x="706" y="243" text-anchor="end" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">a drop passing through</text><text x="401.0" y="226" text-anchor="middle" font-size="12" font-family="var(--sans)" fill="var(--muted)">how fast a pixel changes  &#8594;</text><text x="698" y="82" text-anchor="end" font-size="12.5" font-family="var(--sans)" fill="var(--on)">passed ungated</text><text x="698" y="104" text-anchor="end" font-size="12.5" font-family="var(--sans)" fill="var(--off)">turned down when it looks like rain</text><text x="96" y="30" text-anchor="start" font-size="11" font-family="var(--mono)" fill="var(--muted)">each curve is how much of the signal lands in that band; they sum to 1 everywhere</text></svg></div>
+<figcaption><b>The actual bins, plotted from the shipped model</b> &#8212; not a
+sketch. Each curve shows how much of a signal at that speed lands in that bin. The
+<span class="on">red curve</span> is the ungated band; note it takes
+<em>everything</em> at the far left, where nothing is changing. The three
+<span class="off">blue curves</span> are the ones the equaliser can turn
+down.</figcaption></figure>
+
+<p>This entire stage costs <b>six numbers</b> &#8212; three bin centres and three bin
+widths. That is the whole temporal machinery.</p>
+
+<p class="step">Split two &#8212; by angle</p>
+<h2>Sorting by which way structure points</h2>
+<p>Rain falls in lines. A streak has a direction, and drops in one storm mostly
+share it. Scene structure points every which way. So a second sort, by orientation,
+concentrates rain into a few bins while scene spreads across all of them.</p>
+
+<figure class="bleed"><div class="scroll"><svg viewBox="0 0 880 260" role="img" aria-label="Four orientation bins, each matching streaks at one angle"><defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker><marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--on)"/></marker></defs><rect x="58" y="46" width="144" height="128" rx="5" fill="var(--surface)" stroke="currentColor" stroke-width="1"/><line x1="86" y1="72" x2="174" y2="72" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><line x1="86" y1="97" x2="174" y2="97" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><line x1="86" y1="123" x2="174" y2="123" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><line x1="86" y1="148" x2="174" y2="148" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><text x="130" y="196" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">bin 1</text><text x="130" y="213" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">&#952; = 0&#176;</text><rect x="258" y="46" width="144" height="128" rx="5" fill="var(--surface)" stroke="currentColor" stroke-width="1"/><line x1="272" y1="114" x2="334" y2="52" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><line x1="290" y1="132" x2="352" y2="70" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><line x1="308" y1="150" x2="370" y2="88" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><line x1="326" y1="168" x2="388" y2="106" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><text x="330" y="196" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">bin 2</text><text x="330" y="213" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">&#952; = 45&#176;</text><rect x="458" y="46" width="144" height="128" rx="5" fill="var(--surface)" stroke="currentColor" stroke-width="1"/><line x1="492" y1="154" x2="492" y2="66" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><line x1="517" y1="154" x2="517" y2="66" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><line x1="543" y1="154" x2="543" y2="66" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><line x1="568" y1="154" x2="568" y2="66" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><text x="530" y="196" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">bin 3</text><text x="530" y="213" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">&#952; = 90&#176;</text><rect x="658" y="46" width="144" height="128" rx="5" fill="var(--surface)" stroke="currentColor" stroke-width="1"/><line x1="734" y1="168" x2="672" y2="106" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><line x1="752" y1="150" x2="690" y2="88" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><line x1="770" y1="132" x2="708" y2="70" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><line x1="788" y1="114" x2="726" y2="52" stroke="var(--off)" stroke-width="2.4" stroke-linecap="round" opacity=".85"/><text x="730" y="196" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">bin 4</text><text x="730" y="213" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">&#952; = 135&#176;</text><text x="440" y="244" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">a streak lands mostly in the bin whose angle it matches, so the gate can turn down that bin alone</text><text x="440" y="30" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">the doubled angle makes 0&#176; and 180&#176; the same bin &#8212; a streak has no head or tail</text></svg></div>
+<figcaption><b>Four orientation bins.</b> A streak lands mostly in the bin matching
+its angle, letting the gate suppress that bin alone and leave the others intact.
+Each bin costs four numbers, so all eight (four angles at two sizes) come to
+<b>32 weights</b>.</figcaption></figure>
+
+<p class="step">The decision</p>
+<h2>The sliders are set per pixel, not per frame</h2>
+<p>This is the part that does the actual work, and the only part that is really
+"learned". A small network looks at each neighbourhood and decides, for that
+location, how far to turn each slider down.</p>
+
+<figure class="bleed"><div class="scroll"><svg viewBox="0 0 880 300" role="img" aria-label="The equaliser settings differ from pixel to pixel"><defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker><marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--on)"/></marker></defs><text x="210" y="36" text-anchor="middle" font-size="13" font-family="var(--sans)" fill="var(--muted)">one frame</text><rect x="60" y="52" width="300" height="180" rx="4" fill="var(--surface)" stroke="currentColor" stroke-width="1.1"/><line x1="78" y1="66" x2="62" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="87" y1="66" x2="71" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="96" y1="66" x2="80" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="105" y1="66" x2="89" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="114" y1="66" x2="98" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="123" y1="66" x2="107" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="132" y1="66" x2="116" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="141" y1="66" x2="125" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="150" y1="66" x2="134" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="159" y1="66" x2="143" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="168" y1="66" x2="152" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="177" y1="66" x2="161" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="186" y1="66" x2="170" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><line x1="195" y1="66" x2="179" y2="218" stroke="var(--off)" stroke-width="1.6" opacity=".5"/><rect x="62" y="54" width="116" height="176" fill="none" stroke="var(--off)" stroke-width="1.6" stroke-dasharray="4 3"/><text x="120" y="246" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--off)">heavy rain here</text><rect x="238" y="96" width="106" height="92" fill="none" stroke="var(--on)" stroke-width="1.6" stroke-dasharray="4 3"/><path d="M252,178 L272,132 L292,158 L312,120 L332,178" fill="none" stroke="var(--on)" stroke-width="1.8"/><text x="291" y="246" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--on)">a building edge</text><text x="530" y="36" text-anchor="middle" font-size="12" font-family="var(--sans)" fill="var(--off)">settings inside the rain</text><line x1="452" y1="66" x2="608" y2="66" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="452" y1="66" x2="477" y2="66" stroke="var(--off)" stroke-width="3" stroke-linecap="round"/><rect x="473" y="58" width="8" height="16" rx="2" fill="var(--off)"/><line x1="452" y1="98" x2="608" y2="98" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="452" y1="98" x2="486" y2="98" stroke="var(--off)" stroke-width="3" stroke-linecap="round"/><rect x="482" y="90" width="8" height="16" rx="2" fill="var(--off)"/><line x1="452" y1="130" x2="608" y2="130" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="452" y1="130" x2="530" y2="130" stroke="var(--off)" stroke-width="3" stroke-linecap="round"/><rect x="526" y="122" width="8" height="16" rx="2" fill="var(--off)"/><line x1="452" y1="162" x2="608" y2="162" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="452" y1="162" x2="577" y2="162" stroke="var(--off)" stroke-width="3" stroke-linecap="round"/><rect x="573" y="154" width="8" height="16" rx="2" fill="var(--off)"/><line x1="452" y1="194" x2="608" y2="194" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="452" y1="194" x2="608" y2="194" stroke="var(--on)" stroke-width="3" stroke-linecap="round"/><rect x="604" y="186" width="8" height="16" rx="2" fill="var(--on)"/><text x="530" y="240" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">bottom slider locked</text><text x="764" y="36" text-anchor="middle" font-size="12" font-family="var(--sans)" fill="var(--on)">settings on the edge</text><line x1="686" y1="66" x2="842" y2="66" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="686" y1="66" x2="808" y2="66" stroke="var(--on)" stroke-width="3" stroke-linecap="round"/><rect x="804" y="58" width="8" height="16" rx="2" fill="var(--on)"/><line x1="686" y1="98" x2="842" y2="98" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="686" y1="98" x2="820" y2="98" stroke="var(--on)" stroke-width="3" stroke-linecap="round"/><rect x="816" y="90" width="8" height="16" rx="2" fill="var(--on)"/><line x1="686" y1="130" x2="842" y2="130" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="686" y1="130" x2="826" y2="130" stroke="var(--on)" stroke-width="3" stroke-linecap="round"/><rect x="822" y="122" width="8" height="16" rx="2" fill="var(--on)"/><line x1="686" y1="162" x2="842" y2="162" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="686" y1="162" x2="834" y2="162" stroke="var(--on)" stroke-width="3" stroke-linecap="round"/><rect x="830" y="154" width="8" height="16" rx="2" fill="var(--on)"/><line x1="686" y1="194" x2="842" y2="194" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/><line x1="686" y1="194" x2="842" y2="194" stroke="var(--on)" stroke-width="3" stroke-linecap="round"/><rect x="838" y="186" width="8" height="16" rx="2" fill="var(--on)"/><text x="764" y="240" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">bottom slider locked</text><text x="440" y="282" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">same network, same weights &#8212; the gate reads each neighbourhood and sets its own sliders there</text></svg></div>
+<figcaption><b>Same weights, different settings.</b> Inside a curtain of rain the
+gate pulls the oriented bins right down. On a building edge it leaves them nearly
+open. It sees both a close view and a wide one at once, so it can tell "this whole
+region is rainy" from "this one line is a wall".</figcaption></figure>
+
+<div class="plain"><p><span class="l">A measured choice</span>
+This gate is ordinary convolutions. We tested a state-space scan in the same slot:
+it was <b>worse</b> (error 0.3641 against 0.3304), <b>3&#215; larger</b>, and
+<b>9&#215; slower</b>. Losing on all three at once is unusual, and it is why there
+is no Mamba-style component anywhere in this model.</p></div>
+
+<p class="step">Putting it together</p>
+<h2>One pass, start to finish</h2>
+<figure class="bleed"><div class="scroll"><svg viewBox="0 0 1000 250" role="img" aria-label="How the pieces assemble into one pass"><defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker><marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--on)"/></marker></defs><rect x="34" y="80" width="118" height="76" rx="5" fill="var(--surface)" stroke="currentColor" stroke-width="1.1"/><text x="93.0" y="110" text-anchor="middle" font-size="12.5" font-family="var(--sans)" fill="currentColor">events</text><text x="93.0" y="127" text-anchor="middle" font-size="12.5" font-family="var(--sans)" fill="currentColor">arrive</text><line x1="152" y1="118" x2="186" y2="118" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"/><rect x="190" y="80" width="118" height="76" rx="5" fill="var(--surface)" stroke="var(--on)" stroke-width="1.5"/><text x="249.0" y="110" text-anchor="middle" font-size="12.5" font-family="var(--sans)" fill="currentColor">split by</text><text x="249.0" y="127" text-anchor="middle" font-size="12.5" font-family="var(--sans)" fill="currentColor">SPEED</text><line x1="308" y1="118" x2="342" y2="118" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"/><rect x="346" y="80" width="118" height="76" rx="5" fill="var(--surface)" stroke="var(--on)" stroke-width="1.5"/><text x="405.0" y="110" text-anchor="middle" font-size="12.5" font-family="var(--sans)" fill="currentColor">split by</text><text x="405.0" y="127" text-anchor="middle" font-size="12.5" font-family="var(--sans)" fill="currentColor">ANGLE</text><line x1="464" y1="118" x2="498" y2="118" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"/><rect x="502" y="80" width="128" height="76" rx="5" fill="var(--surface)" stroke="var(--on)" stroke-width="1.5"/><text x="566.0" y="110" text-anchor="middle" font-size="12.5" font-family="var(--sans)" fill="currentColor">set sliders</text><text x="566.0" y="127" text-anchor="middle" font-size="12.5" font-family="var(--sans)" fill="currentColor">per pixel</text><line x1="630" y1="118" x2="682" y2="118" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"/><rect x="686" y="80" width="128" height="76" rx="5" fill="var(--surface)" stroke="currentColor" stroke-width="1.1"/><text x="750.0" y="110" text-anchor="middle" font-size="12.5" font-family="var(--sans)" fill="currentColor">add bands</text><text x="750.0" y="127" text-anchor="middle" font-size="12.5" font-family="var(--sans)" fill="currentColor">back up</text><line x1="814" y1="118" x2="852" y2="118" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"/><rect x="856" y="80" width="128" height="76" rx="5" fill="var(--surface)" stroke="currentColor" stroke-width="1.1"/><text x="920.0" y="110" text-anchor="middle" font-size="12.5" font-family="var(--sans)" fill="currentColor">decision</text><text x="920.0" y="127" text-anchor="middle" font-size="12.5" font-family="var(--sans)" fill="currentColor">per event</text><text x="249" y="176" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">3 bands + 1 locked</text><text x="405" y="176" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">4 angles x 2 sizes</text><text x="566" y="176" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">the only learned decision</text><path d="M93,80 L93,50 L750,50 L750,76" fill="none" stroke="var(--on)" stroke-width="1.3" stroke-dasharray="5 3" marker-end="url(#arR)"/><text x="420" y="42" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--on)">a copy of the untouched input runs alongside, so the network starts from &#8220;keep everything&#8221;</text><text x="500" y="224" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">28,060 weights total &#183; 6.3 ms &#183; the cost does not grow with how many events arrive</text></svg></div>
+<figcaption><b>The full path.</b> The three highlighted stages are the equaliser.
+Everything else is plumbing. The dashed line carries an untouched copy of the input
+forward, so the network's starting position is &#8220;keep every event&#8221; and it
+can only remove what it has actively decided to remove.</figcaption></figure>
+
+<h2>Where the weights actually go</h2>
+<p>The surprise, when you count them:</p>
+<table>
+<tr><th>part</th><th>weights</th><th>what it does</th></tr>
+<tr><td>speed bins</td><td class="n">6</td><td>the entire temporal split</td></tr>
+<tr><td>angle bins</td><td class="n">32</td><td>per block, all 8 orientations</td></tr>
+<tr><td>slider network</td><td class="n">1,112</td><td>per block, the real decision</td></tr>
+<tr><td>ordinary layers</td><td class="n">6,832</td><td>per block, generic processing</td></tr>
+</table>
+<p>The parts that encode the physics are almost free. <b>Three quarters</b> of every
+block is a conventional feed-forward layer doing nothing rain-specific.</p>
+<p>That reframes a result that puzzled us for months: five different architectures,
+from 28,000 to 265,000 weights, all landed within <b>0.007</b> of each other. If the
+structured part is a rounding error in the parameter count, there was never much
+architecture there to vary. What moved the numbers was <em>what we fed the network
+and what we asked it to predict</em> &#8212; fixing the training target alone was
+worth <b>0.212</b>, thirty times the entire spread across architectures.</p>
+
+<p class="step" id="guarantee">A claim we had to withdraw</p>
+<h2>The locked band does not protect the scene end to end</h2>
+<p>For most of this campaign the page you are reading said something stronger than
+the truth: that because the persistent band has no slider, the network
+<em>cannot</em> delete the static world. It reads like an architectural guarantee.
+It is not one, and the way to find out was to attack it.</p>
+<p>The test is direct. Feed the network a completely static input &#8212; a pattern
+that repeats identically in every time slice, so every pixel sits at the far left of
+the speed axis and lands entirely in the locked band. Then <em>train the network to
+delete it anyway</em>, and see how far it gets.</p>
+
+<table>
+<tr><th>what was attacked</th><th class="n">suppression achieved</th><th>reading</th></tr>
+<tr><td>the band decomposition alone</td><td class="n">1.0&#215;</td><td>immovable, exactly as claimed</td></tr>
+<tr><td>the full shipped network</td><td class="n">530&#215;</td><td>protection undone</td></tr>
+<tr><td>same network, locked band deleted</td><td class="n">363&#215;</td><td>the band was not what was helping</td></tr>
+<tr><td>a plain CNN, no structure at all</td><td class="n">1332&#215;</td><td>reference point</td></tr>
+</table>
+
+<p>The first row is the good news and the honest part of the original claim: attack
+the decomposition on its own and it does not move at all. Its six parameters have no
+way to drop the static band, and the optimiser cannot find one.</p>
+<p>The third row is what settles the rest. If the locked band were carrying the
+guarantee, deleting it should have made the network dramatically easier to attack.
+It made it <em>harder</em>, which is to say the difference is noise and the band was
+contributing nothing to the outcome. The band is genuinely ungated where it is
+defined &#8212; and then every other weight in the network sits downstream of it,
+free to look at it and decide otherwise.</p>
+<p>The exact multiplier for a full network wanders between roughly 400&#215; and
+700&#215; across seeds, since it depends on how far one short adversarial run
+happens to get. The ordering, and the conclusion, do not move.</p>
+
+<div class="plain"><p><span class="l">Why a bypass alone can never work</span>
+The obvious repair is to wire the locked band straight to the output as
+<code>z + res</code>. That buys nothing. <code>z</code> is unbounded, so the
+learnable branch can simply emit a large negative number and cancel the bypass
+exactly. <b>Any additive path can be cancelled by an unconstrained partner.</b> To
+get a guarantee you have to bound the partner.</p></div>
+
+<figure class="bleed"><div class="scroll"><svg viewBox="0 0 940 296" role="img" aria-label="An unbounded correction can reach any output including deletion; a bounded correction cannot fall below a floor"><text x="240" y="34" text-anchor="middle" font-size="13" font-family="var(--sans)" fill="var(--muted)">ADDITIVE BYPASS</text><text x="240" y="60" text-anchor="middle" font-size="12" font-family="var(--mono)" fill="var(--ink)">out = res + z</text><text x="240" y="80" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">z unbounded</text><rect x="60" y="120" width="360" height="26" fill="var(--glow)"/><line x1="60" y1="146" x2="420" y2="146" stroke="currentColor" stroke-width="1.1"/><line x1="240" y1="112" x2="240" y2="158" stroke="var(--on)" stroke-width="1.6"/><text x="240" y="176" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--on)">0</text><text x="150" y="196" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--on)">DELETE</text><text x="330" y="196" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">keep</text><text x="240" y="226" text-anchor="middle" font-size="11.5" font-family="var(--sans)" fill="var(--on)">every output reachable</text><text x="240" y="246" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">including full deletion of a static pixel</text><line x1="465" y1="30" x2="465" y2="266" stroke="var(--line)" stroke-width="1" stroke-dasharray="4 4"/><text x="700" y="34" text-anchor="middle" font-size="13" font-family="var(--sans)" fill="var(--off)">BOUNDED CORRECTION</text><text x="700" y="60" text-anchor="middle" font-size="12" font-family="var(--mono)" fill="var(--ink)">out = &#945;&#183;res + C&#183;tanh(z/C)</text><text x="700" y="80" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">second term confined to (&#8722;C, +C)</text><rect x="520" y="120" width="225" height="26" fill="var(--surface)" stroke="var(--line)" stroke-width="1"/><rect x="745" y="120" width="90" height="26" fill="var(--glow)"/><line x1="520" y1="146" x2="880" y2="146" stroke="currentColor" stroke-width="1.1"/><line x1="745" y1="108" x2="745" y2="162" stroke="var(--off)" stroke-width="2"/><text x="745" y="102" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--off)">&#945;&#8722;C</text><line x1="700" y1="118" x2="700" y2="158" stroke="var(--on)" stroke-width="1.6" stroke-dasharray="3 2"/><text x="700" y="176" text-anchor="middle" font-size="11" font-family="var(--mono)" fill="var(--on)">0</text><text x="620" y="196" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">unreachable</text><text x="790" y="196" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--off)">reachable</text><text x="700" y="226" text-anchor="middle" font-size="11.5" font-family="var(--sans)" fill="var(--off)">a persistent pixel cannot be deleted</text><text x="700" y="246" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">for any weights, any training, any adversary</text><text x="470" y="280" text-anchor="middle" font-size="10.5" font-family="var(--mono)" fill="var(--muted)">&#945; and C are fixed constants, never learned &#8212; a learnable &#945; could anneal to zero and the guarantee would evaporate</text></svg></div>
+<figcaption><b>The repair.</b> Squashing the learnable branch through a
+<code>tanh</code> confines it to <code>(&#8722;C, +C)</code>, so a fully persistent
+cell can never score below <code>&#945;&#160;&#8722;&#160;C</code> no matter what
+the weights do. The asymmetry is the right one for deraining: the network can still
+be arbitrarily confident about <em>keeping</em> something, and only loses the
+ability to be arbitrarily confident about <em>removing</em> it. Under the same
+attack this version suppresses static input <b>3.9&#215;</b> instead of hundreds,
+and the lowest logit the adversary can reach on a persistent pixel is
+<b>2.000</b> &#8212; the predicted floor, to three decimals.</figcaption></figure>
+
+<h2>What the guarantee costs</h2>
+<p>It works, and it is not free. We trained it at three strengths on synthetic
+KITTI and two on the real rain rig, everything else held fixed:</p>
+
+<table>
+<tr><th>setting</th><th class="n">floor</th><th class="n">KITTI</th><th class="n">real rig</th></tr>
+<tr><td>none &#8212; the shipped model</td><td class="n">&#8212;</td><td class="n">0.9291</td><td class="n">0.8466</td></tr>
+<tr><td>&#945;=3, C=2.5</td><td class="n">0.5</td><td class="n">0.9227</td><td class="n">&#8212;</td></tr>
+<tr><td>&#945;=2, C=1.5</td><td class="n">0.5</td><td class="n">0.9216</td><td class="n">0.8390</td></tr>
+<tr><td>&#945;=4, C=2</td><td class="n">2.0</td><td class="n">0.8936</td><td class="n">0.8011</td></tr>
+</table>
+
+<p>A weak floor costs about <b>0.007</b> on both datasets. A floor strong enough to
+be worth quoting &#8212; keep-probability above 0.88 on any persistent pixel &#8212;
+costs <b>0.036</b> on KITTI and <b>0.046</b> on the rig.</p>
+<p>We expected the real rig to be kinder, since real scenes contain far more genuine
+persistent structure for the guarantee to protect. It was harsher, and the damage is
+not spread evenly: on the two rain levels the unguarded model already found hardest,
+the strong guard gives up a further <b>0.10</b> each, against a median of
+<b>0.037</b> across the rest. The likely mechanism is the one that made this the
+interesting test in the first place &#8212; the rig generates rain from fixed
+nozzles, so some of its rain sits at fixed pixels, looks exactly like scene
+structure to the one cue this guarantee is built on, and is forcibly retained by
+it.</p>
+
+<div class="plain"><p><span class="l">Where this leaves the design</span>
+The locked band is a good inductive bias and a real part of why the model works. It
+is not a safety property, and we should not have described it as one. A genuine
+safety property is available, it is three lines of algebra, and it costs between
+0.007 and 0.046 event-DA depending on how strong you want it &#8212; which is a
+trade worth offering, and not a claim worth making for free.</p></div>
+</div>

@@ -46,6 +46,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
 from rsp_3d import ORSPNet3D
+from rsp_guard3d import ORSPNet3DGuard
 
 ROOT = f"{C.REAL_PACK}"
 TMP = f"{C.CKPT}"
@@ -164,6 +165,13 @@ def main():
     ap.add_argument("--tout", type=int, default=16)
     ap.add_argument("--ctx", type=int, default=0)
     ap.add_argument("--counts", action="store_true")
+    ap.add_argument("--guard", default="",
+                    help="alpha,bound for the retention-guaranteed trunk. On "
+                         "KITTI this cost 0.0075 (weak) to 0.0355 (strong). "
+                         "Real EVK4 is the ADVERSARIAL case: the rig's nozzles "
+                         "make PERSISTENT RAIN, which the guarantee is forced "
+                         "to keep -- so the cost could be larger here, or the "
+                         "protection could pay for itself on genuine structure.")
     ap.add_argument("--epochs", type=int, default=50)
     ap.add_argument("--batch", type=int, default=4)
     ap.add_argument("--seed", type=int, default=0)
@@ -174,6 +182,7 @@ def main():
     torch.manual_seed(a.seed)
     np.random.seed(a.seed)
     tag = (f"rctx_{a.split}_f{a.tfront}o{a.tout}_c{a.ctx}"
+           + ("" if not a.guard else "_g" + a.guard.replace(",", "-"))
            + ("_cnt" if a.counts else "") + (f"_s{a.seed}" if a.seed else ""))
     n_extra = 2 * a.ctx + (1 if a.counts else 0)
 
@@ -185,8 +194,12 @@ def main():
     va = DataLoader(ds["val"], batch_size=a.batch, **dl)
     te = DataLoader(ds["test"], batch_size=a.batch, **dl)
 
-    m = ORSPNet3D(T=a.tfront, dilations=(1, 8, 32, 64), num_blocks=3,
-                  use_off=True, out_chans=a.tout, n_extra=n_extra).to(DEV)
+    _cls, _gkw = ORSPNet3D, {}
+    if a.guard:
+        _al, _bd = (float(v) for v in a.guard.split(","))
+        _cls, _gkw = ORSPNet3DGuard, dict(alpha=_al, bound=_bd)
+    m = _cls(T=a.tfront, dilations=(1, 8, 32, 64), num_blocks=3,
+                  use_off=True, out_chans=a.tout, n_extra=n_extra, **_gkw).to(DEV)
     npar = sum(q.numel() for q in m.parameters())
     print(f"{tag}: {npar:,} params | T_front {a.tfront} -> T_out {a.tout} | "
           f"ctx {a.ctx} windows | counts {a.counts} | n_extra {n_extra}",

@@ -1,0 +1,16 @@
+
+ADVERSARIAL: train each model to output ZERO on static input
+  400 steps, 256x256, pattern identical in all 4 slices
+
+  arm                             suppressed   logit@lit       min  keep-prob
+  --------------------------------------------------------------------------
+  ours (protected frontend)           529.7x       0.012    -0.139      0.503
+  same trunk, no frontend             363.3x      -0.006    -0.149      0.498
+  plain CNN (unconstrained)          1332.2x      -0.000    -0.011      0.500
+  GUARDED (bounded correction)          3.9x       2.000     2.000      0.881
+
+  FRONTEND residual band only      6.021e-02   5.842e-02         1.0x
+
+  'suppressed' = how many times smaller the response became.
+  Large = the model learned to delete static content.
+  ~1x  = it could not, whatever the optimiser tried.
