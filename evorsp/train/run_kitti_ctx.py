@@ -64,10 +64,12 @@ def _planes(path):
 
 
 class KittiCtxSet(Dataset):
-    def __init__(self, split, t_front, t_out, ctx, counts):
+    def __init__(self, split, t_front, t_out, ctx, counts, ctxres=1):
         self.files = sorted(glob.glob(f"{ROOT}/{split}/*/*.npz"))
         self.mm = [f.split("/")[-2] for f in self.files]
         self.tf, self.to, self.ctx, self.counts = t_front, t_out, ctx, counts
+        assert T_BUILD % ctxres == 0, "ctxres must divide T_BUILD"
+        self.ctxres = ctxres
 
     def __len__(self):
         return len(self.files)
@@ -89,10 +91,23 @@ class KittiCtxSet(Dataset):
         offf = off.reshape(self.tf, T_BUILD // self.tf, R, R).max(1)
 
         extra = []
+        cr = self.ctxres
         for k in range(1, self.ctx + 1):
             pon, poff = _planes(self._prev(f, k))
-            extra.append(pon.max(0)[None].astype(np.float32))
-            extra.append(poff.max(0)[None].astype(np.float32))
+            if cr == 1:
+                # the original: collapse the whole preceding window to ONE
+                # occupancy plane per polarity. Cheap, and a severe compression
+                # -- everything about WHEN a pixel fired inside that window is
+                # discarded before the trunk ever sees it.
+                extra.append(pon.max(0)[None].astype(np.float32))
+                extra.append(poff.max(0)[None].astype(np.float32))
+            else:
+                # keep cr time slices instead, so the preceding window arrives
+                # with the same temporal resolution the CURRENT window gets.
+                extra.append(pon.reshape(cr, T_BUILD // cr, R, R)
+                             .max(1).astype(np.float32))
+                extra.append(poff.reshape(cr, T_BUILD // cr, R, R)
+                             .max(1).astype(np.float32))
         if self.counts:
             cnt = (bg + rn).reshape(self.tf, T_BUILD // self.tf, R, R).sum(1)
             extra.append(np.log1p(cnt.sum(0))[None] / 4.0)      # 1 ch, ~[0,1]
@@ -149,6 +164,14 @@ def main():
     ap.add_argument("--tfront", type=int, default=4)
     ap.add_argument("--tout", type=int, default=16)
     ap.add_argument("--ctx", type=int, default=0)
+    ap.add_argument("--ctxres", type=int, default=1,
+                    help="time slices kept per CONTEXT window. 1 (default) is "
+                         "the original max-pool-to-one-plane. --ctx 4 was null "
+                         "(0.9287 vs 0.9291), but that added more COMPRESSED "
+                         "windows; it never tested whether the compression "
+                         "itself is what costs. PRE-Mamba consumes 5 windows at "
+                         "full temporal resolution, so this is the one input "
+                         "lever left untested.")
     ap.add_argument("--guard", default="",
                     help="alpha,bound for the retention-guaranteed trunk "
                          "(rsp_guard3d). logit = alpha*res + C*tanh(z/C), so a "
@@ -175,14 +198,15 @@ def main():
     torch.manual_seed(a.seed)
     np.random.seed(a.seed)
     tag = (f"ctx_f{a.tfront}o{a.tout}_c{a.ctx}"
+           + (f"r{a.ctxres}" if a.ctxres != 1 else "")
            + (f"_b{a.blocks}" if a.blocks != 3 else "")
            + ("" if a.dil == "1,8,32,64" else "_d" + a.dil.replace(',', '-'))
            + ("" if not a.guard else "_g" + a.guard.replace(",", "-"))
            + ("_cnt" if a.counts else "") + (f"_s{a.seed}" if a.seed else ""))
-    n_extra = 2 * a.ctx + (1 if a.counts else 0)
+    n_extra = 2 * a.ctx * a.ctxres + (1 if a.counts else 0)
 
     dl = dict(num_workers=4, pin_memory=True, persistent_workers=True)
-    ds = {s: KittiCtxSet(s, a.tfront, a.tout, a.ctx, a.counts)
+    ds = {s: KittiCtxSet(s, a.tfront, a.tout, a.ctx, a.counts, a.ctxres)
           for s in ("train", "val", "test")}
     tr = DataLoader(ds["train"], batch_size=a.batch, shuffle=True,
                     drop_last=True, **dl)
@@ -199,8 +223,8 @@ def main():
                   use_off=True, out_chans=a.tout, n_extra=n_extra, **_gkw).to(DEV)
     npar = sum(q.numel() for q in m.parameters())
     print(f"{tag}: {npar:,} params | T_front {a.tfront} -> T_out {a.tout} | "
-          f"ctx {a.ctx} windows | counts {a.counts} | n_extra {n_extra}",
-          flush=True)
+          f"ctx {a.ctx} windows x {a.ctxres} slices | counts {a.counts} | "
+          f"n_extra {n_extra}", flush=True)
 
     opt = torch.optim.AdamW(m.parameters(), lr=5e-4, weight_decay=5e-3)
     sch = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=a.epochs,
