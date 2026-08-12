@@ -1,0 +1,27 @@
+loaded trunk-only + head [headfair_evorsp_c0]
+
+=== INSIDE MIXED CELLS (98 frames) ===
+  model           scene kept  rain dropped   balanced
+  trunk only          0.4005        0.6689     0.5347
+  trunk+head          0.3266        0.8053     0.5660
+  PRE-Mamba           0.6903        0.6038     0.6470
+
+  scene-kept alone is one-sided (keep everything -> 1.0);
+  the balanced column is the fair comparison.
+
+=== trunk+head SWEPT over its own score quantiles ===
+  PRE-Mamba reference: scene 0.6903  rain 0.6038  bal 0.6470
+
+      q  scene kept  rain dropped   balanced
+   0.10      0.9836        0.0500     0.5168
+   0.20      0.9224        0.1425     0.5324
+   0.30      0.7806        0.3155     0.5481
+   0.40      0.5687        0.5529     0.5608
+   0.50      0.3616        0.7658     0.5637
+   0.60      0.2167        0.8945     0.5556
+   0.70      0.1334        0.9503     0.5419
+   0.80      0.0775        0.9774     0.5274
+   0.90      0.0331        0.9924     0.5127
+
+  BEST balanced      q=0.50  scene 0.3616  rain 0.7658  bal 0.5637   (PRE-Mamba 0.6470)
+  AT their rain rate q=0.42  scene 0.5242  rain 0.6005   <- scene recall directly comparable to PRE-Mamba's 0.6903

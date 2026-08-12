@@ -85,6 +85,13 @@ def planes(path):
 
 names = ["trunk only", f"trunk+head", "PRE-Mamba"]
 tot = {n: [0.0, 0.0, 0.0, 0.0] for n in names}
+# A SINGLE self-prior threshold compares two models at whatever operating
+# points they happen to land on. PRE-Mamba drops far less rain than our head
+# does, so the scene-recall gap could be an artifact of where each sits rather
+# than a difference in separability. QS sweeps our head across its own score
+# quantiles so the whole trade-off curve inside mixed cells is measured.
+QS = [round(0.02 * i, 2) for i in range(1, 50)]
+swp = {q: [0.0, 0.0, 0.0, 0.0] for q in QS}
 n_frames = 0
 
 with torch.no_grad():
@@ -163,6 +170,8 @@ with torch.no_grad():
                 out = torch.sigmoid(head(lv, fv, pt, tns[..., None]))[0, :, 0]
             tau_h = float(out.mean())
             keeps["trunk+head"] = (out > tau_h).cpu().numpy()
+            oc = out.cpu().numpy()
+            swp_keep = {q: oc > np.quantile(oc, q) for q in QS}
 
             pred = np.load(pp)
             keeps["PRE-Mamba"] = (pred[:len(x)] == 0) if len(pred) >= len(x) \
@@ -187,6 +196,12 @@ with torch.no_grad():
                 tot[n][1] += sel_s.sum()
                 tot[n][2] += (~keeps[n][sel_r]).sum()   # rain dropped
                 tot[n][3] += sel_r.sum()
+            for q in QS:
+                kq = swp_keep[q]
+                swp[q][0] += kq[sel_s].sum()
+                swp[q][1] += sel_s.sum()
+                swp[q][2] += (~kq[sel_r]).sum()
+                swp[q][3] += sel_r.sum()
             n_frames += 1
 
 print(f"\n=== INSIDE MIXED CELLS ({n_frames} frames) ===")
@@ -197,3 +212,28 @@ for n in names:
     print(f"  {n:14s} {sr:11.4f} {nr:13.4f} {0.5*(sr+nr):10.4f}")
 print("\n  scene-kept alone is one-sided (keep everything -> 1.0);")
 print("  the balanced column is the fair comparison.")
+
+PM_S, PM_R = tot["PRE-Mamba"][0] / max(tot["PRE-Mamba"][1], 1), \
+    tot["PRE-Mamba"][2] / max(tot["PRE-Mamba"][3], 1)
+print(f"\n=== trunk+head SWEPT over its own score quantiles ===")
+print(f"  PRE-Mamba reference: scene {PM_S:.4f}  rain {PM_R:.4f}  "
+      f"bal {0.5*(PM_S+PM_R):.4f}\n")
+print(f"  {'q':>5s} {'scene kept':>11s} {'rain dropped':>13s} {'balanced':>10s}")
+best, at_pm = (-1, None), (1e9, None)
+for q in QS:
+    ks, ds, kr, dr = swp[q]
+    sr, nr = ks / max(ds, 1), kr / max(dr, 1)
+    bal = 0.5 * (sr + nr)
+    if bal > best[0]:
+        best = (bal, (q, sr, nr))
+    d = abs(nr - PM_R)                      # match THEIR rain-drop rate
+    if d < at_pm[0]:
+        at_pm = (d, (q, sr, nr))
+    if abs(q * 100 % 10) < 1e-6:
+        print(f"  {q:>5.2f} {sr:>11.4f} {nr:>13.4f} {bal:>10.4f}")
+q, sr, nr = best[1]
+print(f"\n  BEST balanced      q={q:.2f}  scene {sr:.4f}  rain {nr:.4f}  "
+      f"bal {0.5*(sr+nr):.4f}   (PRE-Mamba {0.5*(PM_S+PM_R):.4f})")
+q, sr, nr = at_pm[1]
+print(f"  AT their rain rate q={q:.2f}  scene {sr:.4f}  rain {nr:.4f}"
+      f"   <- scene recall directly comparable to PRE-Mamba's {PM_S:.4f}")

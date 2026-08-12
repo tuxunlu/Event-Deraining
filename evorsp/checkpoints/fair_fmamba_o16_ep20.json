@@ -1,0 +1,15 @@
+{
+ "tag": "fair_fmamba_o16",
+ "body": "fmamba",
+ "params": 23600048,
+ "tout": 16,
+ "seed": 0,
+ "tau": 0.6,
+ "val": 0.9509346976846471,
+ "test": 0.9283551689154961,
+ "per_test": {
+  "150mm": 0.9076244140021005,
+  "50mm": 0.9490859238288916
+ },
+ "note": "20-epoch run, kept for the record; the 50-epoch parity run overwrites fair_fmamba_o16"
+}

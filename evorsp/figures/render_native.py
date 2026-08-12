@@ -40,16 +40,52 @@ NW, NH = 1280, 720
 FPS, NPER = 10, 80
 RECS = ["rain_1", "rain_13", "rain_20", "rain_26"]
 
+# Was `real_evorsp` (test event-DA 0.8170); now the current real model
+# `rctx_ours_f4o1_c2` (0.8466), which also consumes CTX preceding windows.
+CTX = 2
 models = {}
 for tag, f, kw in [("2D control", "real_orsp2d",
                     dict(T=1, num_blocks=4, use_temporal=False)),
-                   ("EvORSP-3T", "real_evorsp",
-                    dict(T=4, num_blocks=3, use_off=True))]:
+                   ("EvORSP-3T", "rctx_ours_f4o1_c2",
+                    dict(T=4, num_blocks=3, use_off=True, out_chans=1,
+                         n_extra=2 * CTX))]:
     ck = torch.load(f"{TMP}/{f}.pt", map_location="cpu")
     m = ORSPNet3D(dilations=(1, 8, 32, 64), **kw)
     m.load_state_dict(ck["state_dict"])
     models[tag] = m.to(DEV).eval()
 print("models loaded", flush=True)
+
+
+def _grid(path):
+    """Downsampled ON/OFF occupancy for one window, as the trunk consumes it."""
+    with np.load(path) as d:
+        x, y, t, p = d["x"], d["y"], d["t"], d["p"]
+    if len(x) < 200:
+        return None
+    sx = (x.astype(np.int64) * RW) // NW
+    sy = (y.astype(np.int64) * RH) // NH
+    t0 = t.min()
+    span = max(int(t.max() - t0), 1)
+    tb = np.clip(((t - t0) * T16) // span, 0, T16 - 1).astype(np.int64)
+    on = np.zeros((T16, RH * RW), bool)
+    off = np.zeros((T16, RH * RW), bool)
+    s = p == 1
+    on[tb[s], sy[s] * RW + sx[s]] = True
+    off[tb[~s], sy[~s] * RW + sx[~s]] = True
+    return on.reshape(T16, RH, RW), off.reshape(T16, RH, RW)
+
+
+def ctx_planes(files, j):
+    """The CTX preceding windows. Indices are into the FULL file list, since
+    the renderer subsamples frames and the previous *rendered* frame is not
+    the previous window. Clamped at the start exactly as training does."""
+    ex = []
+    for k in range(1, CTX + 1):
+        g = _grid(files[max(j - k, 0)]) or _grid(files[j])
+        pon, poff = g
+        ex.append(pon.max(0)[None].astype(np.float32))
+        ex.append(poff.max(0)[None].astype(np.float32))
+    return torch.from_numpy(np.concatenate(ex, 0)).float()[None].to(DEV)
 
 
 def draw_events(x, y, p, keep=None):
@@ -71,7 +107,7 @@ def draw_events(x, y, p, keep=None):
 
 
 @torch.no_grad()
-def keep_masks(x, y, t, p):
+def keep_masks(x, y, t, p, ex):
     sx = (x.astype(np.int64) * RW) // NW
     sy = (y.astype(np.int64) * RH) // NH
     t0 = t.min()
@@ -90,8 +126,8 @@ def keep_masks(x, y, t, p):
     lit = merge[0, 0] > 0.5
     out = {}
     for tag, m in models.items():
-        pr = torch.sigmoid(m(on4, x_off=off4) if tag == "EvORSP-3T"
-                           else m(merge))[0, 0]
+        pr = torch.sigmoid(m(on4, x_off=off4, x_extra=ex)
+                           if tag == "EvORSP-3T" else m(merge))[0, 0]
         tau = float(pr[lit].mean())                               # self-prior
         cell_keep = ((pr > tau) & lit).cpu().numpy()
         out[tag] = cell_keep[sy, sx]                              # per-event
@@ -110,12 +146,13 @@ cols = ["Input (rainy, native 1280x720)", "2D control [self-prior tau]",
 for ri, rc in enumerate(RECS):
     files = sorted(glob.glob(f"{S5}/{rc}/*.npz"))
     step = max(1, len(files) // NPER)
-    for i, f in enumerate(files[::step][:NPER]):
+    for i, j in enumerate(list(range(0, len(files), step))[:NPER]):
+        f = files[j]
         with np.load(f) as d:
             x, y, t, p = d["x"], d["y"], d["t"], d["p"]
         if len(x) < 200:
             continue
-        km = keep_masks(x, y, t, p)
+        km = keep_masks(x, y, t, p, ctx_planes(files, j))
         panels = [draw_events(x, y, p),
                   draw_events(x, y, p, km["2D control"]),
                   draw_events(x, y, p, km["EvORSP-3T"])]

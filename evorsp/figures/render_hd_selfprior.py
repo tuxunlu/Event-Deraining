@@ -39,6 +39,7 @@ S5 = f"{C.REAL_WILD_SRC}/scene5/merge_data"
 DEV = "cuda"
 T16, RW, RH = 16, 448, 256
 FPS = 10
+CTX = 2          # preceding windows the current real model consumes
 C_ON, C_OFF, C_BOTH = (60, 60, 220), (220, 120, 40), (150, 60, 150)   # BGR
 
 
@@ -61,6 +62,11 @@ def build(kind):
     if kind == "evorsp3t":
         from rsp_3d import ORSPNet3D
         return ORSPNet3D(T=4, num_blocks=3, use_off=True, dilations=(1, 8, 32, 64))
+    if kind == "evorsp3t_ctx":
+        # the current real model: same trunk plus CTX preceding windows
+        from rsp_3d import ORSPNet3D
+        return ORSPNet3D(T=4, num_blocks=3, use_off=True, out_chans=1,
+                         n_extra=2 * CTX, dilations=(1, 8, 32, 64))
     if kind == "orsp2d_real":
         from rsp_3d import ORSPNet3D
         return ORSPNet3D(T=1, num_blocks=4, use_temporal=False,
@@ -77,7 +83,8 @@ REG = [
     ("zs_streak", "proto_streaknet_bal", "streaknet",   "StreakNet [zero-shot]"),
     ("zs_evorsp", "k3d_T4b3off",         "evorsp3t",    "EvORSP-3T [zero-shot]"),
     ("re_2d",     "real_orsp2d",         "orsp2d_real", "2D control [trained on real]"),
-    ("re_evorsp", "real_evorsp",         "evorsp3t",    "EvORSP-3T [trained on real]"),
+    ("re_evorsp", "rctx_ours_f4o1_c2",   "evorsp3t_ctx",
+     "EvORSP-3T +ctx2 [trained on real]"),
 ]
 nets, taus, labels = {}, {}, {}
 for k, f, b, lbl in REG:
@@ -119,8 +126,20 @@ def colorize(on_any, off_any, keep=None):
     return img
 
 
+def ctx_planes(fl, i):
+    """The CTX preceding windows. This renderer walks consecutive windows, so
+    index i-k is the genuine predecessor; clamped at the start as in training."""
+    ex = []
+    for k in range(1, CTX + 1):
+        pl = planes(fl[max(i - k, 0)]) or planes(fl[i])
+        pon, poff = pl
+        ex.append(pon.max(0)[None].astype(np.float32))
+        ex.append(poff.max(0)[None].astype(np.float32))
+    return torch.from_numpy(np.concatenate(ex, 0)).float()[None].to(DEV)
+
+
 @torch.no_grad()
-def all_preds(on16, off16, keys):
+def all_preds(on16, off16, keys, ex):
     on4 = torch.from_numpy(on16.reshape(4, 4, RH, RW).max(1)).float()[None].to(DEV)
     off4 = torch.from_numpy(off16.reshape(4, 4, RH, RW).max(1)).float()[None].to(DEV)
     merge = on4.amax(1, keepdim=True)
@@ -128,7 +147,9 @@ def all_preds(on16, off16, keys):
     SELF_PRIOR = {"re_2d", "re_evorsp"}      # lit-BCE-trained => calibrated =>
     out = {}                                  # Bayes rule tau = mean p over lit
     for k in keys:
-        if k in ("zs_evorsp", "re_evorsp"):
+        if k == "re_evorsp":                  # the only ctx-consuming model
+            p = torch.sigmoid(nets[k](on4, x_off=off4, x_extra=ex))[0, 0]
+        elif k == "zs_evorsp":
             p = torch.sigmoid(nets[k](on4, x_off=off4))[0, 0]
         else:
             p = torch.sigmoid(nets[k](merge))[0, 0]
@@ -173,7 +194,7 @@ def make(path, recs, keys, n_frames, scale, note):
             wrote = True
             on16, off16 = pl
             on_any, off_any = on16.any(0), off16.any(0)
-            preds = all_preds(on16, off16, keys)
+            preds = all_preds(on16, off16, keys, ctx_planes(files[rc], i))
             panels = [colorize(on_any, off_any)] + \
                      [colorize(on_any, off_any, preds[k] ) for k in keys]
             y0 = HDR + GAP + r * (PH + GAP)

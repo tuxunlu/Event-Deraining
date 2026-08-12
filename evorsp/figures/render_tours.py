@@ -35,11 +35,19 @@ FPS, NPER = 10, 80
 SCALE = 2
 C_ON, C_OFF, C_BOTH = (60, 60, 220), (220, 120, 40), (150, 60, 150)
 
+# The EvORSP panel used to render `real_evorsp` (test event-DA 0.8170). The
+# current real model is `rctx_ours_f4o1_c2` (0.8466) -- same architecture plus
+# two windows of inter-window context, so it needs 4 extra input planes that
+# this renderer did not previously build. CTX is the number of preceding
+# windows it expects; n_extra = 2 * CTX (one ON plane and one OFF plane each).
+CTX = 2
 models = {}
-for tag, kw in [("re_2d",     dict(T=1, num_blocks=4, use_temporal=False)),
-                ("re_evorsp", dict(T=4, num_blocks=3, use_off=True))]:
-    ck = torch.load(f"{TMP}/real_{'orsp2d' if tag == 're_2d' else 'evorsp'}.pt",
-                    map_location="cpu")
+for tag, ckpt, kw in [
+        ("re_2d", "real_orsp2d",
+         dict(T=1, num_blocks=4, use_temporal=False)),
+        ("re_evorsp", "rctx_ours_f4o1_c2",
+         dict(T=4, num_blocks=3, use_off=True, out_chans=1, n_extra=2 * CTX))]:
+    ck = torch.load(f"{TMP}/{ckpt}.pt", map_location="cpu")
     m = ORSPNet3D(dilations=(1, 8, 32, 64), **kw)
     m.load_state_dict(ck["state_dict"])
     models[tag] = m.to(DEV).eval()
@@ -75,9 +83,30 @@ def colorize(on_any, off_any, keep=None):
     return img
 
 
+def ctx_planes(files, j):
+    """The CTX preceding windows, as training built them.
+
+    Indexing is into the FULL file list, not the strided render selection --
+    the renderer subsamples frames, so consecutive rendered frames are not
+    consecutive windows and taking the previous *rendered* frame would feed
+    the model a gap it never saw in training. Training clamps at the start of
+    a recording (max(j-k, 0)), so a frame's own planes stand in for its
+    missing history; this matches that exactly.
+    """
+    ex = []
+    for k in range(1, CTX + 1):
+        pl = planes(files[max(j - k, 0)])
+        if pl is None:                       # too few events -> fall back to self
+            pl = planes(files[j])
+        pon, poff = pl
+        ex.append(pon.max(0)[None].astype(np.float32))
+        ex.append(poff.max(0)[None].astype(np.float32))
+    return torch.from_numpy(np.concatenate(ex, 0)).float()[None].to(DEV)
+
+
 @torch.no_grad()
-def frame_panels(f):
-    pl = planes(f)
+def frame_panels(files, j):
+    pl = planes(files[j])
     if pl is None:
         return None
     on16, off16 = pl
@@ -86,9 +115,11 @@ def frame_panels(f):
     off4 = torch.from_numpy(off16.reshape(4, 4, RH, RW).max(1)).float()[None].to(DEV)
     merge = on4.amax(1, keepdim=True)
     lit = merge[0, 0] > 0.5
+    ex = ctx_planes(files, j)
     out = [colorize(on_any, off_any)]
     for k, m in models.items():
-        p = torch.sigmoid(m(on4, x_off=off4) if k == "re_evorsp" else m(merge))[0, 0]
+        p = torch.sigmoid(m(on4, x_off=off4, x_extra=ex)
+                          if k == "re_evorsp" else m(merge))[0, 0]
         tau = float(p[lit].mean())                       # self-prior, per frame
         out.append(colorize(on_any, off_any, ((p > tau) & lit).cpu().numpy()))
     return out
@@ -109,13 +140,13 @@ def tour(path, src, note):
     vw = cv2.VideoWriter(raw, cv2.VideoWriter_fourcc(*"mp4v"), FPS, (Wc, Hc))
     assert vw.isOpened()
     cols = ["Input (rainy)", "2D control [self-prior tau]",
-            "EvORSP-3T [self-prior tau]"]
+            "EvORSP-3T +ctx2 [self-prior tau]"]
     for ri, rc in enumerate(recs):
         files = sorted(glob.glob(f"{src}/{rc}/*.npz"))
         step = max(1, len(files) // NPER)
-        seg = files[::step][:NPER]
-        for i, f in enumerate(seg):
-            panels = frame_panels(f)
+        seg = list(range(0, len(files), step))[:NPER]
+        for i, j in enumerate(seg):
+            panels = frame_panels(files, j)
             if panels is None:
                 continue
             canvas = np.full((Hc, Wc, 3), 252, np.uint8)
