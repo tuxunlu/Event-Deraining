@@ -47,6 +47,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from rsp_3d import ORSPNet3D
 from rsp_guard3d import ORSPNet3DGuard
+import density_aug
 
 ROOT = f"{C.REAL_PACK}"
 TMP = f"{C.CKPT}"
@@ -71,7 +72,8 @@ OURS = {"train": ("scene1", "scene2"), "val": ("scene3",), "test": ("scene4",)}
 
 
 class KittiCtxSet(Dataset):
-    def __init__(self, split, t_front, t_out, ctx, counts, kind="theirs"):
+    def __init__(self, split, t_front, t_out, ctx, counts, kind="theirs",
+                 aug="", mix_p=0.5, drop_q=0.3, seed=0):
         self.files = []
         if kind == "theirs":
             for sc, d in THEIRS.items():
@@ -83,6 +85,21 @@ class KittiCtxSet(Dataset):
         self.files = sorted(self.files)
         self.mm = [f.split("/")[-3] + "/" + f.split("/")[-2] for f in self.files]
         self.tf, self.to, self.ctx, self.counts = t_front, t_out, ctx, counts
+        # TRAIN-ONLY density augmentation, shared with run_kitti_ctx.py. Null
+        # on KITTI across all four arms; the real rig is a different shift --
+        # intensity varies by nozzle pressure and a whole SCENE is held out --
+        # so it is worth re-testing rather than assuming the KITTI answer.
+        self.aug = set(x for x in aug.split("+") if x and x != "none")
+        self.mix_p, self.drop_q = mix_p, drop_q
+        self.rng = np.random.default_rng(seed + 9973)
+
+    def _partner(self):
+        j = int(self.rng.integers(len(self.files)))
+        on2, off2 = _planes(self.files[j])
+        with np.load(self.files[j]) as d:
+            bg2 = d["bg"].reshape(T_BUILD, R, R).astype(np.float32)
+            rn2 = d["rn"].reshape(T_BUILD, R, R).astype(np.float32)
+        return j, on2, off2, bg2, rn2
 
     def __len__(self):
         return len(self.files)
@@ -100,12 +117,20 @@ class KittiCtxSet(Dataset):
         with np.load(f) as d:
             bg = d["bg"].reshape(T_BUILD, R, R).astype(np.float32)
             rn = d["rn"].reshape(T_BUILD, R, R).astype(np.float32)
+        mixed = None
+        if self.aug:
+            on, off, bg, rn, mixed = density_aug.augment(
+                self.rng, on, off, bg, rn, self.aug, self.mix_p,
+                self.drop_q, self._partner)
         onf = on.reshape(self.tf, T_BUILD // self.tf, R, R).max(1)
         offf = off.reshape(self.tf, T_BUILD // self.tf, R, R).max(1)
 
         extra = []
         for k in range(1, self.ctx + 1):
             pon, poff = _planes(self._prev(f, k))
+            pon, poff = density_aug.augment_context(
+                pon, poff, mixed,
+                lambda j: _planes(self._prev(self.files[j], k)))
             extra.append(pon.max(0)[None].astype(np.float32))
             extra.append(poff.max(0)[None].astype(np.float32))
         if self.counts:
@@ -165,6 +190,13 @@ def main():
     ap.add_argument("--tout", type=int, default=16)
     ap.add_argument("--ctx", type=int, default=0)
     ap.add_argument("--counts", action="store_true")
+    ap.add_argument("--aug", default="",
+                    help="train-only density augmentation: mix / drop / hflip, "
+                         "'+'-joined. Null on KITTI (all four arms inside a "
+                         "0.0015 sd); re-tested here because the real shift is "
+                         "a held-out SCENE, not just an unseen intensity.")
+    ap.add_argument("--mix-p", type=float, default=0.5)
+    ap.add_argument("--drop-q", type=float, default=0.3)
     ap.add_argument("--guard", default="",
                     help="alpha,bound for the retention-guaranteed trunk. On "
                          "KITTI this cost 0.0075 (weak) to 0.0355 (strong). "
@@ -183,12 +215,16 @@ def main():
     np.random.seed(a.seed)
     tag = (f"rctx_{a.split}_f{a.tfront}o{a.tout}_c{a.ctx}"
            + ("" if not a.guard else "_g" + a.guard.replace(",", "-"))
+           + ("" if not a.aug else "_a" + a.aug.replace("+", "-"))
            + ("_cnt" if a.counts else "") + (f"_s{a.seed}" if a.seed else ""))
     n_extra = 2 * a.ctx + (1 if a.counts else 0)
 
     dl = dict(num_workers=4, pin_memory=True, persistent_workers=True)
-    ds = {s: KittiCtxSet(s, a.tfront, a.tout, a.ctx, a.counts,
-                         a.split) for s in ("train", "val", "test")}
+    # augmentation on TRAIN ONLY -- val and test define the measurement
+    ds = {s: KittiCtxSet(s, a.tfront, a.tout, a.ctx, a.counts, a.split,
+                         aug=(a.aug if s == "train" else ""),
+                         mix_p=a.mix_p, drop_q=a.drop_q, seed=a.seed)
+          for s in ("train", "val", "test")}
     tr = DataLoader(ds["train"], batch_size=a.batch, shuffle=True,
                     drop_last=True, **dl)
     va = DataLoader(ds["val"], batch_size=a.batch, **dl)

@@ -47,6 +47,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from rsp_3d import ORSPNet3D
 from rsp_guard3d import ORSPNet3DGuard
+import density_aug
 
 ROOT = f"{C.KITTI_PACK}"
 TMP = f"{C.CKPT}"
@@ -88,53 +89,17 @@ class KittiCtxSet(Dataset):
         self.mix_p, self.drop_q = mix_p, drop_q
         self.rng = np.random.default_rng(seed + 9973)
 
+    def _partner(self):
+        j = int(self.rng.integers(len(self.files)))
+        on2, off2 = _planes(self.files[j])
+        with np.load(self.files[j]) as d:
+            bg2 = d["bg"].reshape(T_BUILD, R, R).astype(np.float32)
+            rn2 = d["rn"].reshape(T_BUILD, R, R).astype(np.float32)
+        return j, on2, off2, bg2, rn2
+
     def _augment(self, on, off, bg, rn):
-        """Density augmentation on the raw T_BUILD planes and counts.
-
-        Returns possibly-modified (on, off, bg, rn) plus a flag saying whether
-        a mix partner was drawn, so the caller can mix the context planes the
-        same way.
-        """
-        mixed = None
-        if "mix" in self.aug and self.rng.random() < self.mix_p:
-            # SUPERPOSITION: synthesise heavier rain by overlaying another
-            # window. Counts ADD, so the target bg>rn and the lit mask both
-            # recompute correctly -- the augmentation is label-preserving by
-            # construction rather than by assumption.
-            #
-            # Stated approximation: OR-ing a binary occupancy grid is not the
-            # same as adding events, since two events in one cell still set one
-            # bit. That is exactly what physically happens to an occupancy
-            # representation under overlap, but planes and counts are therefore
-            # not perfectly consistent afterwards.
-            j = int(self.rng.integers(len(self.files)))
-            on2, off2 = _planes(self.files[j])
-            with np.load(self.files[j]) as d:
-                bg = bg + d["bg"].reshape(T_BUILD, R, R).astype(np.float32)
-                rn = rn + d["rn"].reshape(T_BUILD, R, R).astype(np.float32)
-            on, off = on | on2, off | off2
-            mixed = j
-
-        if "drop" in self.aug:
-            # THINNING: simulate lighter rain. Counts are thinned binomially;
-            # an occupancy bit survives with probability 1 - q^n, since a cell
-            # holding n events only goes dark if all n are dropped. Using the
-            # total count for both polarities is an approximation -- the packs
-            # store per-class counts, not per-polarity ones.
-            q = self.drop_q
-            n = bg + rn
-            keep = self.rng.random(n.shape) < (1.0 - q ** np.maximum(n, 1))
-            keep &= n > 0
-            on = on & keep
-            off = off & keep
-            bg = self.rng.binomial(bg.astype(np.int64), 1.0 - q).astype(np.float32)
-            rn = self.rng.binomial(rn.astype(np.int64), 1.0 - q).astype(np.float32)
-
-        if "hflip" in self.aug and self.rng.random() < 0.5:
-            on, off = on[:, :, ::-1], off[:, :, ::-1]
-            bg, rn = bg[:, :, ::-1], rn[:, :, ::-1]
-            mixed = ("hflip", mixed)
-        return on, off, bg, rn, mixed
+        return density_aug.augment(self.rng, on, off, bg, rn, self.aug,
+                                   self.mix_p, self.drop_q, self._partner)
 
     def __len__(self):
         return len(self.files)
@@ -166,14 +131,9 @@ class KittiCtxSet(Dataset):
             # window: a superposed frame gets superposed history, a flipped
             # frame gets flipped history. Otherwise the context contradicts the
             # input and the model learns to distrust it.
-            if mixed is not None:
-                flip = isinstance(mixed, tuple)
-                j = mixed[1] if flip else mixed
-                if j is not None:
-                    p2on, p2off = _planes(self._prev(self.files[j], k))
-                    pon, poff = pon | p2on, poff | p2off
-                if flip:
-                    pon, poff = pon[:, :, ::-1], poff[:, :, ::-1]
+            pon, poff = density_aug.augment_context(
+                pon, poff, mixed,
+                lambda j: _planes(self._prev(self.files[j], k)))
             if cr == 1:
                 # the original: collapse the whole preceding window to ONE
                 # occupancy plane per polarity. Cheap, and a severe compression
