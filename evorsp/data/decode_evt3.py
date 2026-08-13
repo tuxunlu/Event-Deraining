@@ -275,18 +275,37 @@ def main():
         parts = raw.split("/")
         split, seq = parts[-4], parts[-3]
         out = f"{a.out}/{split}/merge_data/{seq}"
-        if os.path.exists(out) and glob.glob(f"{out}/*.npz"):
-            print(f"[{i}/{len(raws)}] {split}/{seq}: exists, skipping", flush=True)
+        # Resume on a COMPLETION MARKER, not on "the directory has npz in it".
+        # A killed decode leaves a partial directory, and skipping those would
+        # silently ship truncated sequences -- which is exactly what happened
+        # when the scratch quota killed the first run mid-flight.
+        done = f"{out}/.complete"
+        if os.path.exists(done):
+            print(f"[{i}/{len(raws)}] {split}/{seq}: complete, skipping",
+                  flush=True)
             continue
+        if os.path.isdir(out):
+            stale = glob.glob(f"{out}/*.npz")
+            if stale:
+                print(f"[{i}/{len(raws)}] {split}/{seq}: {len(stale)} partial "
+                      f"windows from an interrupted run, redoing", flush=True)
+                for f in stale:
+                    os.remove(f)
         gb = os.path.getsize(raw) / 1e9
         print(f"[{i}/{len(raws)}] {split}/{seq}  ({gb:.2f} GB) ...",
               end=" ", flush=True)
         nw, ne, W, H = decode_to_windows(raw, out, a.window_us, a.max_windows)
         print(f"{nw} windows, {ne:,} events, {W}x{H}", flush=True)
-        manifest.append(dict(split=split, sequence=seq, windows=nw,
-                             events=int(ne), width=W, height=H,
-                             window_us=a.window_us, source=raw))
-        json.dump(manifest, open(f"{a.out}/manifest.json", "w"), indent=1)
+        rec = dict(split=split, sequence=seq, windows=nw, events=int(ne),
+                   width=W, height=H, window_us=a.window_us, source=raw)
+        with open(done, "w") as f:                 # marker: this one finished
+            json.dump(rec, f, indent=1)
+        manifest.append(rec)
+        # several jobs share this file, so rebuild it from the per-sequence
+        # markers rather than from this process's own list
+        marks = sorted(glob.glob(f"{a.out}/*/merge_data/*/.complete"))
+        json.dump([json.load(open(m)) for m in marks],
+                  open(f"{a.out}/manifest.json", "w"), indent=1)
     print(f"\nmanifest: {a.out}/manifest.json")
 
 
