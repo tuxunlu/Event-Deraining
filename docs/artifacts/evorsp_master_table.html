@@ -1,0 +1,362 @@
+<title>EvORSP Master Table</title>
+<style>
+:root{
+  --paper:#eceff4;--surface:#f8fafc;--sunk:#e2e8f0;--ink:#131820;--muted:#5f6b7a;
+  --line:#ccd5e0;--rule:#aebccd;
+  --on:#c62d42;--off:#2f6fad;--glow:rgba(198,45,66,.09);
+  --good:#1f7a52;--null:#7c869a;--warn:#a3651f;
+  --serif:ui-serif,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0d1117;--surface:#151d27;--sunk:#1b242f;--ink:#dde5ee;--muted:#8b97a6;
+  --line:#26303c;--rule:#3a4756;
+  --on:#ff6076;--off:#63a6e0;--glow:rgba(255,96,118,.12);
+  --good:#4fbf8b;--null:#8892a4;--warn:#d69544;}}
+:root[data-theme="dark"]{
+  --paper:#0d1117;--surface:#151d27;--sunk:#1b242f;--ink:#dde5ee;--muted:#8b97a6;
+  --line:#26303c;--rule:#3a4756;
+  --on:#ff6076;--off:#63a6e0;--glow:rgba(255,96,118,.12);
+  --good:#4fbf8b;--null:#8892a4;--warn:#d69544;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:3.5rem 1.25rem 6rem;
+  display:flex;flex-direction:column;gap:0}
+h1{font-family:var(--serif);font-weight:600;font-size:clamp(2rem,4.6vw,2.8rem);
+  line-height:1.08;letter-spacing:-.018em;margin:.2rem 0 .5rem;text-wrap:balance}
+h2{font-family:var(--serif);font-weight:600;font-size:1.5rem;line-height:1.2;
+  margin:3.2rem 0 .3rem;text-wrap:balance;
+  padding-top:1.1rem;border-top:2px solid var(--rule)}
+h3{font-family:var(--serif);font-weight:600;font-size:1.08rem;margin:2rem 0 .3rem}
+.eyebrow{font-family:var(--mono);font-size:.68rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 .6rem}
+.sub{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted);margin:.1rem 0 1rem}
+.lede{font-size:1.06rem;color:var(--muted);max-width:64ch;margin:.6rem 0 0}
+p{margin:0 0 .9rem;max-width:70ch}
+code{font-family:var(--mono);font-size:.86em;background:var(--surface);
+  border:1px solid var(--line);border-radius:3px;padding:.06em .32em}
+.scroll{overflow-x:auto;margin:1rem 0;border:1px solid var(--line);
+  border-radius:7px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.92rem;min-width:520px}
+th,td{text-align:left;padding:.46rem .8rem;border-bottom:1px solid var(--line)}
+thead th{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);font-weight:500;
+  background:var(--sunk);white-space:nowrap;position:sticky;top:0}
+tbody tr:last-child td{border-bottom:none}
+td.n,th.n{text-align:right;font-family:var(--mono);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+td.name{font-weight:500;white-space:nowrap}
+.win{color:var(--good);font-weight:600}
+.bad{color:var(--on)}
+.dim{color:var(--muted)}
+tr.hi td{background:var(--glow)}
+tr.ctrl td{color:var(--muted)}
+.pill{display:inline-block;font-family:var(--mono);font-size:.6rem;
+  letter-spacing:.09em;text-transform:uppercase;padding:.12em .45em;
+  border-radius:3px;border:1px solid currentColor;vertical-align:.1em}
+.p-run{color:var(--warn)}.p-null{color:var(--null)}.p-new{color:var(--good)}
+.note{border-left:2px solid var(--on);background:var(--glow);
+  padding:.8rem 1.05rem;margin:1.2rem 0;border-radius:0 5px 5px 0}
+.note p{margin:0;max-width:none}
+.note .l{font-family:var(--mono);font-size:.65rem;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--on);display:block;margin-bottom:.25rem}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  gap:1rem;margin:1rem 0}
+.kpi{border:1px solid var(--line);border-radius:7px;background:var(--surface);
+  padding:.9rem 1.05rem}
+.kpi .k{font-family:var(--mono);font-size:.65rem;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted);display:block}
+.kpi .v{font-family:var(--mono);font-size:1.5rem;font-variant-numeric:tabular-nums;
+  display:block;margin:.15rem 0 .1rem}
+.kpi .d{font-size:.84rem;color:var(--muted);line-height:1.45}
+caption{caption-side:bottom;text-align:left;font-size:.83rem;color:var(--muted);
+  padding:.55rem .8rem 0}
+</style>
+<div class="wrap">
+<p class="eyebrow">Event-camera deraining &#183; all measured results</p>
+<h1>EvORSP master table</h1>
+<p class="lede">Every number the campaign has actually measured, with its
+provenance and its caveats. Event-DA on test unless stated. Anything still
+running is marked, not estimated.</p>
+
+<div class="note"><p><span class="l">How to read this</span>
+<b>Event-DA</b> is balanced accuracy over individual events &#8212;
+<code>0.5&#183;(kept background / all background + dropped rain / all rain)</code>,
+per frame, frame-averaged, with one global threshold picked on val. It is
+<em>not</em> pixel-DA and the two are not interchangeable. <b>Seed range</b>
+differs enormously by dataset: <b>&#177;0.0026 on KITTI</b>, up to
+<b>&#177;0.0304 on SPAC</b>, unmeasured on real. Differences smaller than the
+relevant seed range are not claims.</p></div>
+
+<h2>KITTI &#8212; the fair harness</h2>
+<p class="sub">matched input &#183; matched target &#183; matched readout &#183; 50 epochs &#183; single seed</p>
+<p>Every body reads the same 10-plane temporal+polarity frontend, predicts the
+same count-majority target, and is scored by the same event-level accounting as
+PRE-Mamba's <code>SemSegTester</code>. Differences that survive are architecture.</p>
+
+<div class="scroll"><table>
+<thead><tr>
+<th>backbone</th><th class="n">params</th><th class="n">trunk</th>
+<th class="n">+ ctx2</th><th class="n">+ head</th><th class="n">head params</th>
+<th class="n">latency</th></tr></thead>
+<tbody>
+<tr class="hi"><td class="name">ORSP <span class="dim">(ours)</span></td><td class="n">37,652</td>
+  <td class="n">0.9215</td><td class="n">0.9297</td><td class="n">0.9499</td>
+  <td class="n">54,125</td><td class="n win">8.14 ms</td></tr>
+<tr><td class="name">StreakNet</td><td class="n">52,913</td>
+  <td class="n">0.9218</td><td class="n">0.9295</td><td class="n win">0.9527</td>
+  <td class="n">78,483</td><td class="n">11.02 ms</td></tr>
+<tr><td class="name">DFFN</td><td class="n">72,944</td>
+  <td class="n">0.9150</td><td class="n">0.9258</td><td class="n">0.9489</td>
+  <td class="n">98,514</td><td class="n">12.62 ms</td></tr>
+<tr><td class="name">FourierMamba</td><td class="n">23,600,048</td>
+  <td class="n">0.9284 <span class="pill p-run">20 ep</span></td>
+  <td class="n dim">&#8212;</td><td class="n dim">&#8212;</td>
+  <td class="n dim">&#8212;</td><td class="n bad">167.43 ms</td></tr>
+</tbody>
+<caption>Latency is min-of-300 single-shot CUDA-event timings at 256&#215;256,
+all four measured back to back on one device. Mean and median wall-clock were
+tried three times and failed a validity check &#8212; they reported context arms
+running <em>faster</em> than their no-context counterparts, which is
+impossible.</caption></table></div>
+
+<div class="grid2">
+<div class="kpi"><span class="k">ORSP vs StreakNet, + head</span>
+  <span class="v">0.0028</span>
+  <span class="d">against a &#177;0.0026 seed range. This is a tie, not a
+  ranking &#8212; and ORSP gets there 26% faster with 30% fewer weights.</span></div>
+<div class="kpi"><span class="k">Spread, 28K &#8594; 23.6M params</span>
+  <span class="v">0.013</span>
+  <span class="d">The finding that motivated everything below. On KITTI,
+  capacity and architecture barely matter. <b>This does not hold on real
+  data.</b></span></div>
+</div>
+
+<h3>FourierMamba at epoch parity <span class="pill p-run">running</span></h3>
+<p>The 0.9284 above is 20 epochs against everyone else's 50 &#8212; the parity
+rerun was lost to a node move and restarted late. Current state, val only:</p>
+<div class="scroll"><table>
+<thead><tr><th>arm</th><th class="n">epoch</th><th class="n">val</th><th>note</th></tr></thead>
+<tbody>
+<tr><td class="name">FourierMamba, 50 ep</td><td class="n">45/50</td><td class="n">0.9534</td>
+  <td>flat for 4 epochs; already past its own 20-epoch val of 0.9509</td></tr>
+<tr><td class="name">FourierMamba + ctx2</td><td class="n">47/50</td><td class="n">0.9580</td>
+  <td>flat for 4 epochs; above every other context arm</td></tr>
+</tbody>
+<caption>Val, not test. Our context arms lost ~0.022 going val&#8594;test, which
+would put these near 0.931 and 0.936. No test number is being claimed until the
+runs finish.</caption></table></div>
+
+<h2>Real EVK4 &#8212; the fair harness <span class="pill p-new">new</span></h2>
+<p class="sub">scene-disjoint split &#183; train scenes 1&#8211;2, val 3, test 4 &#183; single seed</p>
+<p>The same harness, verified to produce <b>bit-identical batches</b> to the
+KITTI script on KITTI, so anything that changes here is the dataset.</p>
+
+<div class="scroll"><table>
+<thead><tr><th>backbone</th><th class="n">params</th><th class="n">trunk</th>
+<th class="n">+ ctx2</th><th class="n">ctx gain</th></tr></thead>
+<tbody>
+<tr class="hi"><td class="name">ORSP <span class="dim">(ours)</span></td><td class="n">37,652</td>
+  <td class="n win">0.8193</td><td class="n win">0.8411</td><td class="n">+0.0218</td></tr>
+<tr><td class="name">StreakNet</td><td class="n">52,913</td>
+  <td class="n">0.8098</td><td class="n">0.8356</td><td class="n">+0.0258</td></tr>
+<tr><td class="name">DFFN</td><td class="n">72,944</td>
+  <td class="n bad">0.7578</td><td class="n bad">0.7664</td><td class="n">+0.0086</td></tr>
+<tr><td class="name">FourierMamba</td><td class="n">23,600,048</td>
+  <td class="n"><span class="pill p-run">queued</span></td>
+  <td class="n"><span class="pill p-run">queued</span></td><td class="n dim">&#8212;</td></tr>
+</tbody></table></div>
+
+<div class="note"><p><span class="l">The headline finding, and it reverses a claim</span>
+&#8220;Architecture doesn't matter&#8221; was the campaign's central result. It is
+a <b>KITTI artifact</b>. Across the same three bodies the no-context spread is
+<b>0.0068 on KITTI</b> and <b>0.0615 on real</b> &#8212; nine times wider. On
+KITTI, ORSP and StreakNet tie and DFFN trails by 0.0065; on real, DFFN collapses
+by 0.0615. Same input, same target, same metric. The only change is that the
+rain is real. Context is also worth 2&#8211;3&#215; more here, though not
+uniformly &#8212; DFFN gains only +0.0086.</p></div>
+
+<h3>Real EVK4 &#8212; our own models, both splits</h3>
+<div class="scroll"><table>
+<thead><tr><th>model</th><th class="n">params</th>
+<th class="n">ours (scene-disjoint)</th><th class="n">theirs (PRE-Mamba split)</th></tr></thead>
+<tbody>
+<tr class="hi"><td class="name">EvORSP + per-event head</td><td class="n">53,630</td>
+  <td class="n win">0.8686</td><td class="n">0.8444</td></tr>
+<tr><td class="name">EvORSP-3T + ctx2 <span class="dim">(t_out 1)</span></td><td class="n">28,224</td>
+  <td class="n">0.8466</td><td class="n">0.8192</td></tr>
+<tr><td class="name">EvORSP-3T/E <span class="dim">(t_out 1)</span></td><td class="n">28,060</td>
+  <td class="n">0.8298</td><td class="n">0.8066</td></tr>
+<tr><td class="name">EvORSP-3T/E <span class="dim">(t_out 16)</span></td><td class="n">28,555</td>
+  <td class="n">0.8184</td><td class="n">0.8028</td></tr>
+<tr><td class="name">EvORSP-3T <span class="dim">(original)</span></td><td class="n">28,060</td>
+  <td class="n">0.8170</td><td class="n dim">&#8212;</td></tr>
+<tr><td class="name">+ ITI features</td><td class="n">54,142</td>
+  <td class="n dim">&#8212;</td><td class="n">0.8121</td></tr>
+<tr class="ctrl"><td class="name">2D control</td><td class="n">36,782</td>
+  <td class="n">0.7649</td><td class="n dim">&#8212;</td></tr>
+</tbody>
+<caption>The scene-disjoint split is the harder and more honest number; it holds
+out whole scenes rather than partitioning recordings within them.</caption></table></div>
+
+<h2>Supervision &#8212; the largest lever in the campaign</h2>
+<div class="grid2">
+<div class="kpi"><span class="k">old target, measured ceiling</span>
+  <span class="v">0.6981</span>
+  <span class="d">&#8220;pixel holds &#8805;1 clean ON event&#8221; &#8212; an
+  OR-union over the window, ON only. The trained model scored 0.7052: already
+  saturated against its own target.</span></div>
+<div class="kpi"><span class="k">after rebuilding the target</span>
+  <span class="v win">0.9183</span>
+  <span class="d">Count-majority over both polarities. <b>+0.212</b> from
+  changing nothing but the supervision &#8212; thirty times the entire spread
+  across architectures.</span></div>
+</div>
+
+<h2>Inter-window context &#8212; how much, and how arranged</h2>
+<p class="sub">KITTI &#183; control is 2 windows &#215; 1 pooled slice</p>
+<p>Context windows were max-pooled to one occupancy plane per polarity,
+discarding when a pixel fired inside them. <code>--ctxres K</code> keeps K time
+slices instead; <code>K=1</code> was verified elementwise to equal the max over
+<code>K=4</code>'s slices, so the control is nested inside every arm and the arms
+can only add information.</p>
+
+<div class="scroll"><table>
+<thead><tr><th>arm</th><th>windows &#215; slices</th><th class="n">params</th>
+<th class="n">val</th><th class="n">test</th><th class="n">vs control</th></tr></thead>
+<tbody>
+<tr class="ctrl"><td class="name">control <code>c2</code></td><td>2 &#215; 1</td><td class="n">28,719</td>
+  <td class="n">0.9503</td><td class="n">0.9291</td><td class="n">&#8212;</td></tr>
+<tr><td class="name"><code>c4</code></td><td>4 &#215; 1</td><td class="n">28,883</td>
+  <td class="n">0.9513</td><td class="n">0.9287</td><td class="n">&#8722;0.0004</td></tr>
+<tr><td class="name"><code>c2r2</code></td><td>2 &#215; 2</td><td class="n">28,883</td>
+  <td class="n">0.9513</td><td class="n">0.9285</td><td class="n">&#8722;0.0006</td></tr>
+<tr><td class="name"><code>c1r4</code></td><td>1 &#215; 4</td><td class="n">28,883</td>
+  <td class="n">0.9516</td><td class="n">0.9290</td><td class="n">&#8722;0.0001</td></tr>
+<tr><td class="name"><code>c2r4</code></td><td>2 &#215; 4</td><td class="n">29,211</td>
+  <td class="n">0.9525</td><td class="n">0.9301</td><td class="n">+0.0010</td></tr>
+</tbody>
+<caption>The middle three have <em>identical</em> parameters and channel counts
+and differ only in how those 8 channels are spent. They land within 0.0005 of
+each other and of the control.</caption></table></div>
+
+<div class="note"><p><span class="l">Null &#8212; and the interesting part is why</span>
+Best arm is +0.0010 against &#177;0.0026. But <b>val rises monotonically</b> with
+context information (0.9503 &#8594; 0.9513 &#8594; 0.9516 &#8594; 0.9525) while
+test stays flat. The model demonstrably <em>uses</em> the extra context; it buys
+fit on the val intensities (20/80&#160;mm) that does not transfer to test
+(50/150&#160;mm). That is a generalization gap, and it explains the whole run of
+null architecture results better than &#8220;the trunk has enough
+capacity&#8221;.</p></div>
+
+<h2>The retention guarantee &#8212; and what it costs</h2>
+<p>We claimed the ungated persistent band meant the network <em>cannot</em>
+delete the static scene. Attacked directly, that is false. The bounded-correction
+trunk <code>logit = &#945;&#183;res + C&#183;tanh(z/C)</code> makes it true, since
+the second term is confined to <code>(&#8722;C, +C)</code> and so
+<code>logit &gt; &#945; &#8722; C</code> for any weights.</p>
+
+<div class="scroll"><table>
+<thead><tr><th>attacked: trained to output zero on static input</th>
+<th class="n">suppression</th><th>reading</th></tr></thead>
+<tbody>
+<tr><td class="name">the band decomposition alone</td><td class="n win">1.0&#215;</td>
+  <td>immovable, exactly as claimed</td></tr>
+<tr><td class="name">the full shipped network</td><td class="n bad">530&#215;</td>
+  <td>protection undone</td></tr>
+<tr><td class="name">same network, protected band deleted</td><td class="n bad">363&#215;</td>
+  <td>the band was not what was helping</td></tr>
+<tr><td class="name">plain CNN, no structure</td><td class="n">1332&#215;</td><td>reference</td></tr>
+<tr class="hi"><td class="name">guarded, &#945;=4 C=2</td><td class="n win">3.9&#215;</td>
+  <td>min logit exactly <b>2.000</b> = the predicted floor</td></tr>
+</tbody>
+<caption>Full-network figures wander 400&#8211;700&#215; across seeds; the ordering
+does not. The guarded row is algebra, not a fit.</caption></table></div>
+
+<div class="scroll"><table>
+<thead><tr><th>setting</th><th class="n">floor logit</th><th class="n">keep-prob floor</th>
+<th class="n">KITTI</th><th class="n">real EVK4</th></tr></thead>
+<tbody>
+<tr class="ctrl"><td class="name">none &#8212; shipped</td><td class="n">&#8212;</td><td class="n">&#8212;</td>
+  <td class="n">0.9291</td><td class="n">0.8466</td></tr>
+<tr><td class="name">&#945;=3, C=2.5</td><td class="n">0.5</td><td class="n">0.622</td>
+  <td class="n">0.9227</td><td class="n dim">&#8212;</td></tr>
+<tr><td class="name">&#945;=2, C=1.5</td><td class="n">0.5</td><td class="n">0.622</td>
+  <td class="n">0.9216</td><td class="n">0.8390</td></tr>
+<tr><td class="name">&#945;=4, C=2</td><td class="n">2.0</td><td class="n">0.881</td>
+  <td class="n bad">0.8936</td><td class="n bad">0.8011</td></tr>
+</tbody>
+<caption>Real rig data is the <em>adversarial</em> case, not the favourable one
+expected: its nozzles make persistent rain the floor is forced to keep. Damage
+concentrates on the two levels the unguarded model already found hardest
+(&#8722;0.10 each vs a 0.037 median).</caption></table></div>
+
+<h2>Occlusion &#8212; scene events inside mixed cells</h2>
+<p class="sub">98 test frames &#183; cells holding both classes &#183; our cell partition</p>
+<p>The case a car edge crossing a large drop falls into. This is our own metric;
+the literature has no comparable overlap-region measure.</p>
+
+<div class="scroll"><table>
+<thead><tr><th>model</th><th class="n">scene kept</th><th class="n">rain dropped</th>
+<th class="n">balanced</th></tr></thead>
+<tbody>
+<tr><td class="name">trunk only</td><td class="n">0.4005</td><td class="n">0.6689</td><td class="n">0.5347</td></tr>
+<tr><td class="name">trunk + per-event head</td><td class="n bad">0.3266</td><td class="n">0.8053</td><td class="n">0.5660</td></tr>
+<tr class="hi"><td class="name">PRE-Mamba</td><td class="n win">0.6903</td><td class="n">0.6038</td><td class="n win">0.6470</td></tr>
+</tbody></table></div>
+
+<div class="scroll"><table>
+<thead><tr><th>our head, swept across its own score quantiles</th>
+<th class="n">scene kept</th><th class="n">rain dropped</th><th class="n">balanced</th></tr></thead>
+<tbody>
+<tr><td class="name">best balanced anywhere on the curve</td><td class="n">0.3616</td>
+  <td class="n">0.7658</td><td class="n">0.5637</td></tr>
+<tr><td class="name">at PRE-Mamba's own rain-drop rate</td><td class="n bad">0.5242</td>
+  <td class="n">0.6005</td><td class="n dim">&#8212;</td></tr>
+</tbody>
+<caption>No threshold rescues it. This is a separability gap, not a calibration
+one &#8212; which refutes the premise that finer decision granularity plus richer
+features would close it.</caption></table></div>
+
+<h2>SPAC</h2>
+<p class="sub">our ablations only &#183; cross-model harness queued, not yet run</p>
+<div class="scroll"><table>
+<thead><tr><th>model</th><th class="n">params</th><th class="n">test</th></tr></thead>
+<tbody>
+<tr class="hi"><td class="name">EvORSP-3T, T4 + off</td><td class="n">37,157</td><td class="n win">0.8377</td></tr>
+<tr><td class="name">3 seeds: T4b3+off+cnt</td><td class="n">28,142</td>
+  <td class="n">0.8245 / 0.8337 / 0.8033</td></tr>
+<tr><td class="name">EvORSP-3T/E + ctx2</td><td class="n">28,719</td><td class="n">0.8277</td></tr>
+<tr><td class="name">3 seeds: T4b3+off</td><td class="n">28,060</td>
+  <td class="n">0.8171 / 0.8274 / 0.8132</td></tr>
+<tr class="ctrl"><td class="name">2D control (T1)</td><td class="n">36,782</td><td class="n">0.7405</td></tr>
+</tbody>
+<caption>Seed spread reaches <b>0.0304</b> &#8212; twelve times KITTI's. Any
+single-seed SPAC comparison is uninterpretable, which is why the cross-model
+harness there is 4 bodies &#215; 3 seeds.</caption></table></div>
+
+<h2>What is still running</h2>
+<div class="scroll"><table>
+<thead><tr><th>work</th><th class="n">arms</th><th>status</th></tr></thead>
+<tbody>
+<tr><td class="name">FourierMamba KITTI, 50 ep &#177; ctx</td><td class="n">2</td>
+  <td>epoch 45&#8211;47 of 50, ~1&#8211;2 h</td></tr>
+<tr><td class="name">FourierMamba KITTI + head</td><td class="n">1</td>
+  <td>chained behind the parity run</td></tr>
+<tr><td class="name">FourierMamba real EVK4 &#177; ctx</td><td class="n">2</td>
+  <td>queued &#8212; the arm that decides the real ranking</td></tr>
+<tr><td class="name">SPAC cross-model, 4 bodies &#215; 3 seeds</td><td class="n">12</td>
+  <td>queued behind a 4-GPU cap</td></tr>
+<tr><td class="name">Real-data video re-render</td><td class="n">5</td>
+  <td>blocked: raw EVK4 streams absent from every mount</td></tr>
+</tbody></table></div>
+
+<div class="note"><p><span class="l">Known gaps, stated rather than hidden</span>
+Every KITTI and real arm above is a <b>single seed</b>; only SPAC has three.
+The real-data seed range is unmeasured, so the 0.0095 ORSP&#8211;StreakNet gap
+on real is not yet safe to quote, though the 0.0615 DFFN gap is far too large to
+be noise. FourierMamba's 0.9284 is 20 epochs against everyone else's 50. Latency
+is measured for KITTI-shaped input only.</p></div>
+</div>

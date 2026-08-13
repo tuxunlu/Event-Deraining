@@ -9,6 +9,7 @@ and no way to edit them.
 |---|---|
 | `evorsp_explained.html` | https://claude.ai/code/artifact/588476d4-519d-4739-8e3b-026906cfe6e1 |
 | `evorsp_pipeline.html`  | https://claude.ai/code/artifact/7251b2e8-c608-4bc3-9100-d0bc0d32e2e1 |
+| `evorsp_master_table.html` | https://claude.ai/code/artifact/0ead6033-0f37-44a8-b679-fb84d0dff6b5 |
 
 Each file is a page *body*: it is wrapped in `<!doctype html><head>…</head><body>`
 at publish time, so it starts at `<title>` and carries its own `<style>`. To
