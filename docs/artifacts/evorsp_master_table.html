@@ -112,8 +112,8 @@ PRE-Mamba's <code>SemSegTester</code>. Differences that survive are architecture
   <td class="n">0.9150</td><td class="n">0.9258</td><td class="n">0.9489</td>
   <td class="n">98,514</td><td class="n">12.62 ms</td></tr>
 <tr><td class="name">FourierMamba</td><td class="n">23,600,048</td>
-  <td class="n">0.9284 <span class="pill p-run">20 ep</span></td>
-  <td class="n dim">&#8212;</td><td class="n dim">&#8212;</td>
+  <td class="n win">0.9327</td><td class="n win">0.9379</td>
+  <td class="n"><span class="pill p-run">queued</span></td>
   <td class="n dim">&#8212;</td><td class="n bad">167.43 ms</td></tr>
 </tbody>
 <caption>Latency is min-of-300 single-shot CUDA-event timings at 256&#215;256,
@@ -127,27 +127,33 @@ impossible.</caption></table></div>
   <span class="v">0.0028</span>
   <span class="d">against a &#177;0.0026 seed range. This is a tie, not a
   ranking &#8212; and ORSP gets there 26% faster with 30% fewer weights.</span></div>
-<div class="kpi"><span class="k">Spread, 28K &#8594; 23.6M params</span>
-  <span class="v">0.013</span>
-  <span class="d">The finding that motivated everything below. On KITTI,
-  capacity and architecture barely matter. <b>This does not hold on real
-  data.</b></span></div>
+<div class="kpi"><span class="k">FourierMamba's lead over us, trunk</span>
+  <span class="v bad">0.0112</span>
+  <span class="d">Was 0.0069 at its 20-epoch number. Epoch parity <em>widened</em>
+  it. Its context arm (0.9379) also beats our best trunk-side result anywhere
+  (0.9301) by 0.0078.</span></div>
 </div>
 
-<h3>FourierMamba at epoch parity <span class="pill p-run">running</span></h3>
-<p>The 0.9284 above is 20 epochs against everyone else's 50 &#8212; the parity
-rerun was lost to a node move and restarted late. Current state, val only:</p>
+<h3>FourierMamba at epoch parity <span class="pill p-new">settled</span></h3>
+<p>The original 0.9284 was 20 epochs against everyone else's 50 &#8212; the
+parity rerun was lost to a node move and restarted late. It has now finished,
+and the correction runs <em>against</em> us.</p>
 <div class="scroll"><table>
-<thead><tr><th>arm</th><th class="n">epoch</th><th class="n">val</th><th>note</th></tr></thead>
+<thead><tr><th>arm</th><th class="n">epochs</th><th class="n">val</th>
+<th class="n">test</th><th class="n">vs 20 ep</th></tr></thead>
 <tbody>
-<tr><td class="name">FourierMamba, 50 ep</td><td class="n">45/50</td><td class="n">0.9534</td>
-  <td>flat for 4 epochs; already past its own 20-epoch val of 0.9509</td></tr>
-<tr><td class="name">FourierMamba + ctx2</td><td class="n">47/50</td><td class="n">0.9580</td>
-  <td>flat for 4 epochs; above every other context arm</td></tr>
+<tr class="ctrl"><td class="name">FourierMamba <span class="dim">(old)</span></td>
+  <td class="n">20</td><td class="n">0.9509</td><td class="n">0.9284</td><td class="n">&#8212;</td></tr>
+<tr class="hi"><td class="name">FourierMamba</td><td class="n">50</td>
+  <td class="n">0.9534</td><td class="n win">0.9327</td><td class="n">+0.0043</td></tr>
+<tr class="hi"><td class="name">FourierMamba + ctx2</td><td class="n">50</td>
+  <td class="n">0.9580</td><td class="n win">0.9379</td><td class="n dim">&#8212;</td></tr>
 </tbody>
-<caption>Val, not test. Our context arms lost ~0.022 going val&#8594;test, which
-would put these near 0.931 and 0.936. No test number is being claimed until the
-runs finish.</caption></table></div>
+<caption>Both correction passes went the same way: fixing the input comparison
+put FourierMamba ahead of our trunk, and fixing the epoch budget widened that
+lead. The only KITTI axis where we still lead is the per-event head
+(0.9499 / 0.9527 vs 0.9379) &#8212; and its head arm has not run yet, so that
+lead is untested rather than established.</caption></table></div>
 
 <h2>Real EVK4 &#8212; the fair harness <span class="pill p-new">new</span></h2>
 <p class="sub">scene-disjoint split &#183; train scenes 1&#8211;2, val 3, test 4 &#183; single seed</p>
@@ -321,7 +327,24 @@ one &#8212; which refutes the premise that finer decision granularity plus riche
 features would close it.</caption></table></div>
 
 <h2>SPAC</h2>
-<p class="sub">our ablations only &#183; cross-model harness queued, not yet run</p>
+<p class="sub">cross-model harness running &#183; 4 bodies &#215; 3 seeds</p>
+<div class="scroll"><table>
+<thead><tr><th>fair harness, no ctx</th><th class="n">seed 0</th>
+<th class="n">seed 1</th><th class="n">seed 2</th><th class="n">spread</th></tr></thead>
+<tbody>
+<tr><td class="name">ORSP</td><td class="n">0.7874</td><td class="n">0.7923</td>
+  <td class="n"><span class="pill p-run">running</span></td><td class="n">0.0049 so far</td></tr>
+<tr><td class="name">StreakNet</td><td class="n"><span class="pill p-run">running</span></td>
+  <td class="n dim">&#8212;</td><td class="n dim">&#8212;</td><td class="n dim">&#8212;</td></tr>
+<tr><td class="name">DFFN</td><td class="n"><span class="pill p-run">queued</span></td>
+  <td class="n dim">&#8212;</td><td class="n dim">&#8212;</td><td class="n dim">&#8212;</td></tr>
+<tr><td class="name">FourierMamba</td><td class="n"><span class="pill p-run">queued</span></td>
+  <td class="n dim">&#8212;</td><td class="n dim">&#8212;</td><td class="n dim">&#8212;</td></tr>
+</tbody>
+<caption>Two seeds in, the observed spread is 0.0049 &#8212; well below the
+0.0304 seen in our own ablations. Too early to conclude the harness tames the
+variance, but worth watching.</caption></table></div>
+<h3>Our own SPAC ablations</h3>
 <div class="scroll"><table>
 <thead><tr><th>model</th><th class="n">params</th><th class="n">test</th></tr></thead>
 <tbody>
@@ -341,14 +364,14 @@ harness there is 4 bodies &#215; 3 seeds.</caption></table></div>
 <div class="scroll"><table>
 <thead><tr><th>work</th><th class="n">arms</th><th>status</th></tr></thead>
 <tbody>
-<tr><td class="name">FourierMamba KITTI, 50 ep &#177; ctx</td><td class="n">2</td>
-  <td>epoch 45&#8211;47 of 50, ~1&#8211;2 h</td></tr>
+<tr class="ctrl"><td class="name">FourierMamba KITTI, 50 ep &#177; ctx</td><td class="n">2</td>
+  <td>done &#8212; 0.9327 and 0.9379</td></tr>
 <tr><td class="name">FourierMamba KITTI + head</td><td class="n">1</td>
-  <td>chained behind the parity run</td></tr>
+  <td>queued &#8212; tests our only remaining KITTI lead</td></tr>
 <tr><td class="name">FourierMamba real EVK4 &#177; ctx</td><td class="n">2</td>
-  <td>queued &#8212; the arm that decides the real ranking</td></tr>
+  <td>running ~5 h of an expected ~20 &#8212; decides the real ranking</td></tr>
 <tr><td class="name">SPAC cross-model, 4 bodies &#215; 3 seeds</td><td class="n">12</td>
-  <td>queued behind a 4-GPU cap</td></tr>
+  <td>2 done, 2 running, 8 queued</td></tr>
 <tr><td class="name">Real-data video re-render</td><td class="n">5</td>
   <td>blocked: raw EVK4 streams absent from every mount</td></tr>
 </tbody></table></div>
@@ -357,6 +380,6 @@ harness there is 4 bodies &#215; 3 seeds.</caption></table></div>
 Every KITTI and real arm above is a <b>single seed</b>; only SPAC has three.
 The real-data seed range is unmeasured, so the 0.0095 ORSP&#8211;StreakNet gap
 on real is not yet safe to quote, though the 0.0615 DFFN gap is far too large to
-be noise. FourierMamba's 0.9284 is 20 epochs against everyone else's 50. Latency
+be noise. FourierMamba is now at epoch parity, so that caveat is retired. Latency
 is measured for KITTI-shaped input only.</p></div>
 </div>
