@@ -111,7 +111,13 @@ def _decode_chunk(w, st):
     hi_vals = pay[m_hi]
     if hi_vals.size:
         prev = np.r_[st.t_hi & 0xFFF, hi_vals[:-1]]
-        wraps = np.cumsum(hi_vals < prev) * 4096
+        # A WRAP is a fall from near 4095 to near 0. Small backward steps are
+        # not wraps -- the sensor emits TIME_HIGH slightly out of order around
+        # packet boundaries (measured: 1,249 such steps in one 4.4 GB file,
+        # typically 2911->2556, a few hundred ticks mid-range). Counting those
+        # as wraps added 4096 ticks each and inflated that recording from 57 s
+        # to 20,961 s. Require the drop to exceed half the range.
+        wraps = np.cumsum((prev - hi_vals) > 2048) * 4096
         hi_abs = hi_vals + (st.t_hi & ~0xFFF) + wraps
         full_hi = np.zeros_like(pay)
         full_hi[m_hi] = hi_abs
@@ -237,8 +243,13 @@ def decode_to_windows(raw, outdir, window_us=100_000, max_windows=0,
             if cut == t.size:
                 break
             n_ev += flush(buf, n_win) if buf else 0
-            buf, n_win = [], n_win + 1
+            buf = []
             x, y, t, p = x[cut:], y[cut:], t[cut:], p[cut:]
+            # Jump straight to the window holding the next event. Advancing one
+            # window at a time across a time gap would spin through hundreds of
+            # thousands of empty indices.
+            n_win = max(n_win + 1, int((t[0] - t0) // window_us)) if t.size \
+                else n_win + 1
             if max_windows and n_win >= max_windows:
                 return n_win, n_ev, W, H
     if buf:
@@ -295,9 +306,30 @@ def main():
         print(f"[{i}/{len(raws)}] {split}/{seq}  ({gb:.2f} GB) ...",
               end=" ", flush=True)
         nw, ne, W, H = decode_to_windows(raw, out, a.window_us, a.max_windows)
-        print(f"{nw} windows, {ne:,} events, {W}x{H}", flush=True)
+        print(f"{nw} windows, {ne:,} events, {W}x{H}", end=" ", flush=True)
+
+        # CROSS-CHECK against the recording's own host timestamps. A decoder
+        # bug that corrupts the clock shows up here and nowhere else: the event
+        # count stays plausible and the frames look fine, only the timeline is
+        # wrong. This exact check is what a bad wrap rule would have tripped --
+        # sequence_000001 decoded to 20,961 s against a 57 s recording.
+        span = None
+        pk = os.path.join(os.path.dirname(raw), "event_packet_times.npy")
+        if os.path.exists(pk) and not a.max_windows:
+            tp = np.load(pk)
+            span = float(tp.max() - tp.min()) / 1e6
+            got = nw * a.window_us / 1e6
+            drift = abs(got - span) / max(span, 1e-9)
+            print(f"| {got:.1f}s vs {span:.1f}s metadata", end=" ", flush=True)
+            if drift > 0.05:
+                print(f"\n  REJECTED {split}/{seq}: decoded span differs from "
+                      f"metadata by {100*drift:.0f}% -- not marking complete",
+                      flush=True)
+                continue
+        print("OK", flush=True)
         rec = dict(split=split, sequence=seq, windows=nw, events=int(ne),
-                   width=W, height=H, window_us=a.window_us, source=raw)
+                   width=W, height=H, window_us=a.window_us, source=raw,
+                   metadata_span_s=span)
         with open(done, "w") as f:                 # marker: this one finished
             json.dump(rec, f, indent=1)
         manifest.append(rec)
