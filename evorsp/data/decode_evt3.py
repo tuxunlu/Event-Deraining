@@ -110,15 +110,22 @@ def _decode_chunk(w, st):
     m_hi = typ == THIGH
     hi_vals = pay[m_hi]
     if hi_vals.size:
-        prev = np.r_[st.t_hi & 0xFFF, hi_vals[:-1]]
-        # A WRAP is a fall from near 4095 to near 0. Small backward steps are
-        # not wraps -- the sensor emits TIME_HIGH slightly out of order around
-        # packet boundaries (measured: 1,249 such steps in one 4.4 GB file,
-        # typically 2911->2556, a few hundred ticks mid-range). Counting those
-        # as wraps added 4096 ticks each and inflated that recording from 57 s
-        # to 20,961 s. Require the drop to exceed half the range.
-        wraps = np.cumsum((prev - hi_vals) > 2048) * 4096
-        hi_abs = hi_vals + (st.t_hi & ~0xFFF) + wraps
+        # PHASE UNWRAP, not wrap-counting. TIME_HIGH is a 12-bit counter that
+        # both wraps and jitters: the sensor emits it slightly out of order
+        # around packet boundaries. Thresholding "is this a wrap?" fails at
+        # both ends -- counting every decrease inflated a 57 s recording to
+        # 20,961 s, and requiring a >2048 drop still left 3,899 s.
+        #
+        # Instead map each step into (-2048, +2048] and accumulate. A small
+        # backward step stays a small backward step; a fall from 4090 to 5
+        # becomes +11. This is exactly np.unwrap on a 4096-period counter, and
+        # it needs no threshold at all. Sanity: a 57 s recording is 13,965
+        # ticks of 4096 us, i.e. ~3.4 genuine wraps -- so any rule reporting
+        # hundreds of them was wrong by construction.
+        prev0 = st.t_hi & 0xFFF
+        d = np.diff(np.r_[prev0, hi_vals].astype(np.int64))
+        d = ((d + 2048) % 4096) - 2048
+        hi_abs = st.t_hi + np.cumsum(d)
         full_hi = np.zeros_like(pay)
         full_hi[m_hi] = hi_abs
         t_hi = _ffill(m_hi, full_hi, st.t_hi)
