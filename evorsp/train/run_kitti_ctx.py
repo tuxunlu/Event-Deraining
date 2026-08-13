@@ -64,12 +64,77 @@ def _planes(path):
 
 
 class KittiCtxSet(Dataset):
-    def __init__(self, split, t_front, t_out, ctx, counts, ctxres=1):
+    """Windows, optionally augmented along the DENSITY axis.
+
+    The entire val-test gap on this benchmark is intensity extrapolation: tau
+    is picked on val {20,80} mm and reported on test {50,150} mm, 50 mm sits
+    inside the trained range and scores at val level, and 150 mm -- heavier
+    than anything seen in training -- drops 0.039. Only 17% of that is
+    recoverable by ANY threshold rule, so the remainder is separability and
+    has to be attacked during training.
+
+    Augmentation applies to TRAIN ONLY. Passing it to val or test would move
+    the thing being measured.
+    """
+
+    def __init__(self, split, t_front, t_out, ctx, counts, ctxres=1, aug="",
+                 mix_p=0.5, drop_q=0.3, seed=0):
         self.files = sorted(glob.glob(f"{ROOT}/{split}/*/*.npz"))
         self.mm = [f.split("/")[-2] for f in self.files]
         self.tf, self.to, self.ctx, self.counts = t_front, t_out, ctx, counts
         assert T_BUILD % ctxres == 0, "ctxres must divide T_BUILD"
         self.ctxres = ctxres
+        self.aug = set(a for a in aug.split("+") if a and a != "none")
+        self.mix_p, self.drop_q = mix_p, drop_q
+        self.rng = np.random.default_rng(seed + 9973)
+
+    def _augment(self, on, off, bg, rn):
+        """Density augmentation on the raw T_BUILD planes and counts.
+
+        Returns possibly-modified (on, off, bg, rn) plus a flag saying whether
+        a mix partner was drawn, so the caller can mix the context planes the
+        same way.
+        """
+        mixed = None
+        if "mix" in self.aug and self.rng.random() < self.mix_p:
+            # SUPERPOSITION: synthesise heavier rain by overlaying another
+            # window. Counts ADD, so the target bg>rn and the lit mask both
+            # recompute correctly -- the augmentation is label-preserving by
+            # construction rather than by assumption.
+            #
+            # Stated approximation: OR-ing a binary occupancy grid is not the
+            # same as adding events, since two events in one cell still set one
+            # bit. That is exactly what physically happens to an occupancy
+            # representation under overlap, but planes and counts are therefore
+            # not perfectly consistent afterwards.
+            j = int(self.rng.integers(len(self.files)))
+            on2, off2 = _planes(self.files[j])
+            with np.load(self.files[j]) as d:
+                bg = bg + d["bg"].reshape(T_BUILD, R, R).astype(np.float32)
+                rn = rn + d["rn"].reshape(T_BUILD, R, R).astype(np.float32)
+            on, off = on | on2, off | off2
+            mixed = j
+
+        if "drop" in self.aug:
+            # THINNING: simulate lighter rain. Counts are thinned binomially;
+            # an occupancy bit survives with probability 1 - q^n, since a cell
+            # holding n events only goes dark if all n are dropped. Using the
+            # total count for both polarities is an approximation -- the packs
+            # store per-class counts, not per-polarity ones.
+            q = self.drop_q
+            n = bg + rn
+            keep = self.rng.random(n.shape) < (1.0 - q ** np.maximum(n, 1))
+            keep &= n > 0
+            on = on & keep
+            off = off & keep
+            bg = self.rng.binomial(bg.astype(np.int64), 1.0 - q).astype(np.float32)
+            rn = self.rng.binomial(rn.astype(np.int64), 1.0 - q).astype(np.float32)
+
+        if "hflip" in self.aug and self.rng.random() < 0.5:
+            on, off = on[:, :, ::-1], off[:, :, ::-1]
+            bg, rn = bg[:, :, ::-1], rn[:, :, ::-1]
+            mixed = ("hflip", mixed)
+        return on, off, bg, rn, mixed
 
     def __len__(self):
         return len(self.files)
@@ -87,6 +152,9 @@ class KittiCtxSet(Dataset):
         with np.load(f) as d:
             bg = d["bg"].reshape(T_BUILD, R, R).astype(np.float32)
             rn = d["rn"].reshape(T_BUILD, R, R).astype(np.float32)
+        mixed = None
+        if self.aug:
+            on, off, bg, rn, mixed = self._augment(on, off, bg, rn)
         onf = on.reshape(self.tf, T_BUILD // self.tf, R, R).max(1)
         offf = off.reshape(self.tf, T_BUILD // self.tf, R, R).max(1)
 
@@ -94,6 +162,18 @@ class KittiCtxSet(Dataset):
         cr = self.ctxres
         for k in range(1, self.ctx + 1):
             pon, poff = _planes(self._prev(f, k))
+            # keep the context consistent with whatever was done to the current
+            # window: a superposed frame gets superposed history, a flipped
+            # frame gets flipped history. Otherwise the context contradicts the
+            # input and the model learns to distrust it.
+            if mixed is not None:
+                flip = isinstance(mixed, tuple)
+                j = mixed[1] if flip else mixed
+                if j is not None:
+                    p2on, p2off = _planes(self._prev(self.files[j], k))
+                    pon, poff = pon | p2on, poff | p2off
+                if flip:
+                    pon, poff = pon[:, :, ::-1], poff[:, :, ::-1]
             if cr == 1:
                 # the original: collapse the whole preceding window to ONE
                 # occupancy plane per polarity. Cheap, and a severe compression
@@ -189,6 +269,15 @@ def main():
                     help="depth is the ONLY lever that moves latency: "
                          "dim/probe/n_rad are free (4.23-4.27 ms across "
                          "12K-29K params), 3->2 blocks is 4.26->3.15 ms")
+    ap.add_argument("--aug", default="",
+                    help="TRAIN-ONLY density augmentation, '+'-joined: "
+                         "mix (superpose another window -> heavier rain, "
+                         "counts add so labels stay exact), drop (thin events "
+                         "-> lighter rain), hflip (control). Phase 1 showed "
+                         "only 17%% of the 150mm deficit is reachable by any "
+                         "threshold, so the rest must be attacked here.")
+    ap.add_argument("--mix-p", type=float, default=0.5)
+    ap.add_argument("--drop-q", type=float, default=0.3)
     ap.add_argument("--counts", action="store_true")
     ap.add_argument("--epochs", type=int, default=50)
     ap.add_argument("--batch", type=int, default=4)
@@ -202,11 +291,15 @@ def main():
            + (f"_b{a.blocks}" if a.blocks != 3 else "")
            + ("" if a.dil == "1,8,32,64" else "_d" + a.dil.replace(',', '-'))
            + ("" if not a.guard else "_g" + a.guard.replace(",", "-"))
+           + ("" if not a.aug else "_a" + a.aug.replace("+", "-"))
            + ("_cnt" if a.counts else "") + (f"_s{a.seed}" if a.seed else ""))
     n_extra = 2 * a.ctx * a.ctxres + (1 if a.counts else 0)
 
     dl = dict(num_workers=4, pin_memory=True, persistent_workers=True)
-    ds = {s: KittiCtxSet(s, a.tfront, a.tout, a.ctx, a.counts, a.ctxres)
+    # augmentation on TRAIN ONLY -- val and test define the measurement
+    ds = {s: KittiCtxSet(s, a.tfront, a.tout, a.ctx, a.counts, a.ctxres,
+                         aug=(a.aug if s == "train" else ""),
+                         mix_p=a.mix_p, drop_q=a.drop_q, seed=a.seed)
           for s in ("train", "val", "test")}
     tr = DataLoader(ds["train"], batch_size=a.batch, shuffle=True,
                     drop_last=True, **dl)
